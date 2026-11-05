@@ -1,0 +1,115 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>dualcoded.supply</title>
+  <meta name="description" content="dualcoded.supply: we buy and sell clothes. 732 streetwear and artist merch, 508 vintage, Y2K and workwear.">
+  <meta name="theme-color" content="#0a0a0a">
+  <meta property="og:title" content="dualcoded.supply">
+  <meta property="og:description" content="We buy and sell clothes. 732 streetwear / 508 vintage & Y2K.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&family=Kaushan+Script&family=Permanent+Marker&family=Special+Elite&family=UnifrakturCook:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=60">
+</head>
+<body data-theme="map">
+
+  <!-- ============ MAP LANDING ============ -->
+  <section id="landing" class="view is-active" aria-label="Pick a side">
+    <svg id="map" role="img" aria-label="Map with the two shop locations: 732 Holmdel NJ and 508 Brockton MA"></svg>
+
+    <header class="land-head">
+      <a class="land-ig" id="landIg" target="_blank" rel="noopener">Instagram ↗</a>
+    </header>
+
+    <div class="land-copy">
+      <h1>Dualcoded<br>Supply</h1>
+      <p id="landWho">We buy and sell clothes.</p>
+    </div>
+
+    <div class="land-sides" id="landSides"></div>
+    <button class="land-all" id="shopAll">See everything</button>
+    <div class="preview" id="preview" aria-hidden="true"></div>
+  </section>
+
+  <!-- ============ STORE ============ -->
+  <section id="store" class="view" aria-label="Shop">
+    <header class="store-head">
+      <button class="wordmark wordmark-btn" id="toMap" title="Back to the map">dualcoded<em>.supply</em></button>
+      <nav class="switch" id="switch" aria-label="Choose side">
+        <button data-side="732">732</button>
+        <button data-side="all">All</button>
+        <button data-side="508">508</button>
+        <span class="switch-bar" id="switchBar"></span>
+      </nav>
+      <a class="head-ig" id="headIg" target="_blank" rel="noopener">Instagram ↗</a>
+    </header>
+
+    <div class="hero" id="hero"></div>
+
+    <div class="filters">
+      <div class="cats" id="cats"></div>
+      <div class="filter-right">
+        <input id="search" type="search" placeholder="Search" aria-label="Search">
+        <select id="size" aria-label="Size"></select>
+        <select id="sort" aria-label="Sort">
+          <option value="new">Newest</option>
+          <option value="low">Price ↑</option>
+          <option value="high">Price ↓</option>
+        </select>
+      </div>
+    </div>
+
+    <main class="grid" id="grid" aria-live="polite"></main>
+    <p class="empty" id="empty" hidden>Nothing here right now. New pieces go up all the time, DM us what you're looking for.</p>
+
+    <section class="sold" id="soldWrap" hidden>
+      <h3>Recently sold</h3>
+      <div class="sold-row" id="soldRow"></div>
+    </section>
+
+    <footer class="foot">
+      <div class="foot-main">
+        <p class="foot-big">Selling something? We buy too.</p>
+        <p>Authenticity guaranteed · Price matching · Open to offers · Fast shipping</p>
+      </div>
+      <div class="foot-links">
+        <a id="footIg" target="_blank" rel="noopener">Instagram ↗</a>
+        <a id="footDepop" target="_blank" rel="noopener">Depop ↗</a>
+      </div>
+    </footer>
+  </section>
+
+  <!-- ============ ITEM ============ -->
+  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle" hidden>
+    <div class="modal-back" data-close></div>
+    <article class="modal-card">
+      <button class="modal-x" data-close aria-label="Close">Close</button>
+      <div class="gallery">
+        <div class="gal-track" id="galTrack"></div>
+        <div class="gal-thumbs" id="galThumbs"></div>
+      </div>
+      <div class="m-info">
+        <p class="m-side" id="mSide"></p>
+        <h2 id="mTitle"></h2>
+        <p class="m-price" id="mPrice"></p>
+        <dl class="m-specs" id="mSpecs"></dl>
+        <p class="m-desc" id="mDesc"></p>
+        <div class="m-actions" id="mActions"></div>
+        <button class="m-share" id="mShare">Copy link to this piece</button>
+      </div>
+    </article>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+  <script src="config.js?v=60"></script>
+  <script>
+    if (window.DC_CONFIG.SUPABASE_URL) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"><\/script>');
+  </script>
+  <script src="data.js?v=60"></script>
+  <script src="fx.js?v=60"></script>
+  <script src="app.js?v=60"></script>
+</body>
+</html>
