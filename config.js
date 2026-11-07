@@ -12,6 +12,8 @@ window.DC_CONFIG = {
   SITE_NAME: "DUALCODED SUPPLY",
   INSTAGRAM: "dualcoded.supply",
   DEPOP_SHOP: "https://www.depop.com/harrisone20/",
+  // shown until the live numbers load (the Depop sync keeps the live ones up to date)
+  DEPOP_STATS: { rating: 5, reviews: 16, sold: 48 },
 
   SIDES: {
     "508": {

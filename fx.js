@@ -1,6 +1,5 @@
 // Side transitions. Each run(swap) covers the screen, calls swap() while covered, then reveals.
-//   732: colored crosses stamp in as a growing diamond until they fill the screen, a "Streetwear" banner unrolls,
-//        a color wave rolls through, then they pop away center-first. (crosses() = older chrome version, unused.)
+//   732: one of four, picked at random: colorful cross wall, night city, bats, world tour.
 //   508: a pile of thrifted clothes falls in and stacks up, then the whole pile drops off the bottom.
 //   neutral: plain black wipe (back to map / "all").
 (function () {
@@ -28,94 +27,6 @@
       };
       requestAnimationFrame(f);
     });
-  }
-
-  // ================== 732 · CHROME CROSS ==================
-  // Our own cross drawing (flared arms, three-point tips, ring center, studs): not anyone's logo.
-  // One arm as (across, outward) offsets from the center, rotated 4 times.
-  const ARM = [[6, 10], [7.5, 22], [11, 33], [15.5, 41], [20, 49], [10, 43.5], [0, 50], [-10, 43.5], [-20, 49], [-15.5, 41], [-11, 33], [-7.5, 22], [-6, 10]];
-  const CROSS_PATH = (() => {
-    const pts = [];
-    for (let k = 0; k < 4; k++) {
-      const t = -Math.PI / 2 + k * Math.PI / 2, ox = Math.cos(t), oy = Math.sin(t), px = -oy, py = ox;
-      ARM.forEach(([u, v]) => pts.push([50 + u * px + v * ox, 50 + u * py + v * oy]));
-    }
-    return "M" + pts.map(p => p[0].toFixed(2) + " " + p[1].toFixed(2)).join(" L") + " Z";
-  })();
-  function crossSVG(id, extra) {
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-4 -4 108 108">
-      <defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#fafafa"/><stop offset=".22" stop-color="#8d8d8d"/>
-        <stop offset=".42" stop-color="#f2f2f2"/><stop offset=".55" stop-color="#3d3d3d"/>
-        <stop offset=".72" stop-color="#d4d4d4"/><stop offset="1" stop-color="#6e6e6e"/></linearGradient></defs>
-      <path d="${CROSS_PATH}" fill="url(#${id})" stroke="#111" stroke-width="1.2" stroke-linejoin="round"/>
-      <path d="${CROSS_PATH}" fill="none" stroke="#000" stroke-opacity=".45" stroke-width=".9" transform="translate(50 50) scale(.8) translate(-50 -50)"/>
-      <path d="${CROSS_PATH}" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width=".5" transform="translate(50 50) scale(.86) translate(-50 -50)"/>
-      <circle cx="50" cy="50" r="9" fill="url(#${id})" stroke="#111" stroke-width="1.2"/>
-      <circle cx="50" cy="50" r="4.6" fill="#0b0b0b" stroke="#c9c9c9" stroke-width=".8"/>
-      <circle cx="50" cy="20" r="2.2" fill="#f0f0f0" stroke="#111" stroke-width=".6"/>
-      <circle cx="50" cy="80" r="2.2" fill="#f0f0f0" stroke="#111" stroke-width=".6"/>
-      <circle cx="20" cy="50" r="2.2" fill="#f0f0f0" stroke="#111" stroke-width=".6"/>
-      <circle cx="80" cy="50" r="2.2" fill="#f0f0f0" stroke="#111" stroke-width=".6"/>${extra || ""}</svg>`;
-  }
-  const CROSS_BG = svgURI(crossSVG("g1"));
-
-  async function crosses(swap, label) {
-    const W = innerWidth, H = innerHeight;
-    const root = layer("fx-cross");
-    const size = W < 760 ? 74 : 104;
-    const cols = Math.ceil(W / size) + 1, rows = Math.ceil(H / size) + 1;
-    const ox = (W - cols * size) / 2, oy = (H - rows * size) / 2;
-    const cx = W / 2, cy = H / 2, maxD = Math.hypot(W, H) / 2;
-    const tiles = [];
-    const frag = document.createDocumentFragment();
-    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-      const t = document.createElement("i");
-      t.className = "fx-tile";
-      t.style.cssText = `left:${ox + c * size}px;top:${oy + r * size}px;width:${size + 1}px;height:${size + 1}px;background-image:${CROSS_BG}`;
-      const d = Math.hypot(ox + c * size + size / 2 - cx, oy + r * size + size / 2 - cy) / maxD;
-      tiles.push({ t, d });
-      frag.appendChild(t);
-    }
-    root.appendChild(frag);
-    const big = document.createElement("div");
-    big.className = "fx-bigcross";
-    big.innerHTML = crossSVG("g2", `<rect class="glint" x="-60" y="-10" width="26" height="130" fill="#fff" opacity=".55" transform="rotate(20)"/>`);
-    const word = document.createElement("div");
-    word.className = "fx-cross-word";
-    word.textContent = label || "Streetwear";
-    root.append(big, word);
-
-    // 1) ripple in: tiles spin + grow from the center out
-    const ins = tiles.map(({ t, d }) => t.animate([
-      { transform: "scale(0) rotate(-135deg)", opacity: 0 },
-      { transform: "scale(1.12) rotate(8deg)", opacity: 1, offset: .7 },
-      { transform: "scale(1) rotate(0deg)", opacity: 1 }],
-      { duration: 520, delay: d * 520, easing: "cubic-bezier(.2,.8,.2,1)", fill: "both" }));
-    await Promise.all(ins.map(done));
-    // 2) big cross drops in with a glint
-    big.animate([{ transform: "translate(-50%,-50%) scale(.2) rotate(-90deg)", opacity: 0 },
-                 { transform: "translate(-50%,-50%) scale(1.06) rotate(4deg)", opacity: 1, offset: .75 },
-                 { transform: "translate(-50%,-50%) scale(1) rotate(0)", opacity: 1 }],
-      { duration: 560, easing: "cubic-bezier(.2,.9,.25,1)", fill: "both" });
-    word.animate([{ opacity: 0, transform: "translate(-50%, 20px)", letterSpacing: ".4em" }, { opacity: 1, transform: "translate(-50%, 0)", letterSpacing: ".04em" }],
-      { duration: 600, delay: 200, easing: "cubic-bezier(.16,1,.3,1)", fill: "both" });
-    big.querySelector(".glint").animate([{ transform: "rotate(20deg) translateX(0)" }, { transform: "rotate(20deg) translateX(190px)" }],
-      { duration: 700, delay: 380, easing: "ease-in-out", fill: "both" });
-    tiles.forEach(({ t, d }) => t.animate([{ filter: "brightness(1)" }, { filter: "brightness(2.2)" }, { filter: "brightness(1)" }],
-      { duration: 420, delay: 300 + d * 380 }));
-    await sleep(820);
-    swap();
-    await sleep(80);
-    // 3) out: big cross punches through, tiles collapse center-first
-    big.animate([{ transform: "translate(-50%,-50%) scale(1)", opacity: 1 }, { transform: "translate(-50%,-50%) scale(9) rotate(25deg)", opacity: 0 }],
-      { duration: 650, easing: "cubic-bezier(.7,0,.84,0)", fill: "forwards" });
-    word.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 250, fill: "forwards" });
-    const outs = tiles.map(({ t, d }) => t.animate([
-      { transform: "scale(1) rotate(0)", opacity: 1 }, { transform: "scale(0) rotate(90deg)", opacity: 0 }],
-      { duration: 420, delay: 120 + d * 460, easing: "cubic-bezier(.7,0,.3,1)", fill: "forwards" }));
-    await Promise.all(outs.map(done));
-    root.remove();
   }
 
   // ================== 732 · COLOR CROSS WALL ==================
@@ -224,58 +135,7 @@
     root.remove();
   }
 
-  // ================== 732 · FOG BRIDGE ==================
-  // Hazy pastel bay scene (drawn, no photo): red suspension bridge, hills, water, drifting fog.
-  // A red "dualcoded" box slams in, fog rolls over everything, then clears to the store.
-  function bridgeSVG() {
-    const deck = x => 600 + (x / 1600) * 34;                      // deck height, slight slope
-    const towerX = 1290, towerTop = 118, cx0 = towerX + 15;      // cables meet at the tower top
-    // quadratic cables with the control point at the x-midpoint, so x is linear in t
-    const cableL = x => { const t = (x + 60) / (cx0 + 60); return 150 * (1 - t) * (1 - t) + 2 * (1 - t) * t * 980 + t * t * towerTop; };
-    const cableR = x => { const t = (x - cx0) / (1660 - cx0); return towerTop * (1 - t) * (1 - t) + 2 * (1 - t) * t * 300 + t * t * 470; };
-    let hangers = "";
-    for (let x = -40; x < 1650; x += 32) {
-      if (Math.abs(x - cx0) < 45) continue;
-      const top = x < cx0 ? cableL(x) : cableR(x);
-      if (deck(x) - top > 8) hangers += `M${x},${top.toFixed(1)}V${deck(x).toFixed(1)}`;
-    }
-    const leg = (x) => `<rect x="${x}" y="${towerTop}" width="30" height="${800 - towerTop}" fill="url(#twr)"/>`;
-    const beams = [150, 255, 360, 470].map(y => `<rect x="${towerX - 34}" y="${y}" width="98" height="16" fill="#b8352b"/><rect x="${towerX - 18}" y="${y + 20}" width="66" height="44" fill="none" stroke="#b8352b" stroke-width="7"/>`).join("");
-    return `<svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e4dfe9"/><stop offset=".5" stop-color="#f4eee6"/><stop offset="1" stop-color="#dfe9ee"/></linearGradient>
-        <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cc7cf"/><stop offset="1" stop-color="#3d93ad"/></linearGradient>
-        <linearGradient id="twr" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b02c25"/><stop offset=".45" stop-color="#e8483a"/><stop offset="1" stop-color="#a72a23"/></linearGradient>
-        <linearGradient id="haze" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity=".75"/></linearGradient>
-      </defs>
-      <rect width="1600" height="900" fill="url(#sky)"/>
-      <path d="M0,430 C150,330 320,290 470,330 C600,365 700,420 860,470 L860,900 L0,900Z" fill="#8fa3b6" opacity=".75"/>
-      <path d="M760,520 C900,450 1000,410 1120,430 C1300,455 1450,470 1600,500 L1600,900 L760,900Z" fill="#7f9a8f" opacity=".85"/>
-      <path d="M380,620 C520,560 640,520 820,560 C980,600 1100,700 1300,720 L1300,900 L380,900Z" fill="#c39d8e" opacity=".8"/>
-      <rect y="0" width="1600" height="900" fill="url(#haze)" opacity=".7"/>
-      <rect x="0" y="770" width="1600" height="130" fill="url(#sea)"/>
-      <path d="M0,790 H1600 M0,812 H1600 M0,840 H1600" stroke="#fff" stroke-opacity=".25" stroke-width="2" stroke-dasharray="40 26"/>
-      <g opacity=".55"><rect x="36" y="150" width="18" height="640" fill="#c0463c"/><rect x="74" y="150" width="18" height="640" fill="#c0463c"/><rect x="30" y="200" width="68" height="10" fill="#b03a31"/></g>
-      <path d="${hangers}" stroke="#c63c30" stroke-width="1.6" opacity=".85"/>
-      <path d="M-60,150 Q${(cx0 - 60) / 2},980 ${cx0},${towerTop}" fill="none" stroke="#c63c30" stroke-width="6"/>
-      <path d="M${cx0},${towerTop} Q${(cx0 + 1660) / 2},300 1660,470" fill="none" stroke="#c63c30" stroke-width="6"/>
-      <polygon points="-60,${deck(-60)} 1660,${deck(1660)} 1660,${deck(1660) + 26} -60,${deck(-60) + 26}" fill="#9d3530"/>
-      <path d="${Array.from({ length: 60 }, (_, i) => { const x = -60 + i * 29; return `M${x},${deck(x) + 2}L${x + 14},${deck(x) + 24}L${x + 29},${deck(x + 29) + 2}`; }).join("")}" fill="none" stroke="#6d2622" stroke-width="2"/>
-      ${leg(towerX - 30)}${leg(towerX + 30)}${beams}
-      <rect x="${towerX - 40}" y="790" width="110" height="40" fill="#cdbfb3"/>
-    </svg>`;
-  }
-
-  // Real photo: "Bridge near cliff" by an Unsplash photographer, free under the Unsplash License
-  // (https://unsplash.com/photos/CTUhQOz1joY). Preloaded so the transition never starts on a blank frame.
-  const BRIDGE_URL = "https://images.unsplash.com/photo-1508937633044-5cf2edda8fb6?auto=format&fit=crop&q=78&w=" +
-    (innerWidth < 760 ? 1100 : 2200);
-  const bridgeImg = new Image();
-  bridgeImg.referrerPolicy = "no-referrer";
-  bridgeImg.alt = "";
-  bridgeImg.src = BRIDGE_URL;
-  bridgeImg.decode?.().catch(() => {});   // decode up front; the same element is reused in the transition
-
+  // ================== shared: haze texture (night city) ==================
   // Fog textures: tileable fractal noise rendered once to a canvas, white with soft alpha.
   function fogTexture(seed, density, w = 512, h = 192) {
     let s = seed;
@@ -308,69 +168,16 @@
     return cv.toDataURL("image/png");
   }
   let FOG = null;
-  const makeFog = () => FOG || (FOG = { low: fogTexture(11, .62), mid: fogTexture(29, .5), high: fogTexture(47, .42), wall: fogTexture(83, .92) });
+  const makeFog = () => FOG || (FOG = { mid: fogTexture(29, .5) });
   // build the textures when the browser is idle so the first transition doesn't pause
   (window.requestIdleCallback || (f => setTimeout(f, 1200)))(() => makeFog());
-
-  async function fogbridge(swap, label) {
-    const W = innerWidth;
-    const fog = makeFog();
-    const usePhoto = bridgeImg.complete && bridgeImg.naturalWidth > 0;
-    const root = layer("fx-bridge");
-    root.innerHTML = `<div class="fb-scene">${usePhoto ? "" : bridgeSVG()}<div class="fb-grade"></div></div>
-      <div class="fb-fog fb-high" style="background-image:url(${fog.high});background-size:${W * .9}px 100%"></div>
-      <div class="fb-fog fb-mid" style="background-image:url(${fog.mid});background-size:${W * 1.1}px 100%"></div>
-      <div class="fb-fog fb-low" style="background-image:url(${fog.low});background-size:${W * 1.3}px 100%"></div>
-      <div class="fb-box"><span>dualcoded</span></div>
-      <div class="fb-wall" style="background-image:url(${fog.wall});background-size:${W * 1.2}px 100%"></div>
-      <div class="fb-white"></div>`;
-    const $ = s => root.querySelector(s);
-    const scene = $(".fb-scene"), box = $(".fb-box"), wall = $(".fb-wall"), white = $(".fb-white");
-    const fogs = [$(".fb-high"), $(".fb-mid"), $(".fb-low")];
-    if (usePhoto) scene.prepend(bridgeImg);
-
-    // fog drifts at three depths (nearer = faster), the whole time
-    const drift = [[-6, -20, 4200], [-22, -4, 3600], [0, -36, 3200]];
-    fogs.forEach((f, i) => f.animate([{ transform: `translate3d(${drift[i][0]}%,0,0)` }, { transform: `translate3d(${drift[i][1]}%,0,0)` }],
-      { duration: drift[i][2], easing: "linear", fill: "both" }));
-    // 1) scene fades up through white with a slow camera push-in
-    root.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 450, easing: "ease-out", fill: "both" });
-    scene.animate([{ transform: "scale(1.08)" }, { transform: "scale(1.0)" }], { duration: 2700, easing: "cubic-bezier(.2,.6,.3,1)", fill: "both" });
-    await sleep(560);
-    // 2) the box slams in, then the word wipes across it
-    box.animate([{ transform: "translate(-50%,-50%) scale(1.9)", opacity: 0 },
-                 { transform: "translate(-50%,-50%) scale(.94)", opacity: 1, offset: .6 },
-                 { transform: "translate(-50%,-50%) scale(1.02)", offset: .8 },
-                 { transform: "translate(-50%,-50%) scale(1)", opacity: 1 }],
-      { duration: 460, easing: "cubic-bezier(.3,.7,.3,1)", fill: "both" });
-    // wipe ends with negative insets so the slanted last letter isn't clipped
-    box.firstChild.animate([{ clipPath: "inset(-20% 105% -20% -10%)" }, { clipPath: "inset(-20% -15% -20% -10%)" }],
-      { duration: 380, delay: 160, easing: "cubic-bezier(.6,0,.2,1)", fill: "both" });
-    await sleep(1000);
-    // 3) a thick fog bank rolls in from the left until everything is white
-    wall.animate([{ transform: "translate3d(-50%,0,0)", opacity: 0 }, { transform: "translate3d(-8%,0,0)", opacity: 1 }],
-      { duration: 700, easing: "cubic-bezier(.35,0,.25,1)", fill: "both" });
-    await done(white.animate([{ opacity: 0 }, { opacity: 0, offset: .4 }, { opacity: 1 }], { duration: 700, easing: "ease-in", fill: "both" }));
-    // take the scene, box and light fog out entirely (their animations' fill would keep them visible)
-    [box, scene, ...fogs].forEach(el => el.remove());
-    root.style.background = "transparent";
-    swap();
-    await sleep(80);
-    // 4) the white thins out and the fog bank drifts off to the right, revealing the store
-    // fog thins and spreads where it is (no sliding, so no layer edge ever comes into view)
-    wall.animate([{ transform: "translate3d(-8%,0,0) scale(1)", opacity: 1 }, { transform: "translate3d(-3%,0,0) scale(1.18)", opacity: 0 }],
-      { duration: 1000, easing: "cubic-bezier(.4,0,.3,1)", fill: "both" });
-    await done(white.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 620, easing: "ease-out", fill: "both" }));
-    await sleep(320);
-    root.remove();
-  }
 
   // ================== 732 · NIGHT CITY ==================
   // Moody aerial night skyline (real photo), slow drone drift, haze. The red "dualcoded" box slams in,
   // then the camera dives into the box until the screen is solid red, and the red lifts off to the store.
-  // Photo: "high-angle photography of urban area", free under the Unsplash License
-  // (https://unsplash.com/photos/iWYLvcR-AI0).
-  const CITY_URL = "https://images.unsplash.com/photo-1562092125-6d9193cadf2e?auto=format&fit=crop&q=78&w=" +
+  // Photo: "aerial photo of Empire State building during nighttime" (Midtown Manhattan), free under the
+  // Unsplash License (https://unsplash.com/photos/IRXYNAMlUtw).
+  const CITY_URL = "https://images.unsplash.com/photo-1499463217683-ee3c9ce038f1?auto=format&fit=crop&q=78&w=" +
     (innerWidth < 760 ? 1100 : 2200);
   const cityImg = new Image();
   cityImg.referrerPolicy = "no-referrer";
@@ -818,12 +625,12 @@
     if (running) { swap(); return; }
     running = true;
     // 732 picks one of its transitions at random each time
-    const pool = [cluster, fogbridge, nightcity, bats, tour];
+    const pool = [cluster, nightcity, bats, tour];
     const fx732 = pool[(Math.random() * pool.length) | 0];
     try { await (kind === "732" ? fx732 : kind === "508" ? pile : wipe)(swap, label); }
     catch (e) { console.error(e); swap(); document.querySelectorAll(".fx").forEach(n => n.remove()); }
     finally { running = false; }
   }
 
-  window.DCFX = { run, crossSVG, _fogbridge: fogbridge, _nightcity: nightcity,_bats: bats, _tour: tour, cemURI: n => CEM_URI[n] || CEM_URI.white, CEM, CEM_NAMES, CROSS_RATIO };
+  window.DCFX = { run, _nightcity: nightcity, _bats: bats, _tour: tour, cemURI: n => CEM_URI[n] || CEM_URI.white, CEM, CEM_NAMES, CROSS_RATIO };
 })();
