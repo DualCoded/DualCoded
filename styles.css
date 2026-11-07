@@ -126,15 +126,16 @@ img { display: block; }
 .bt-mark span { font-family: var(--sans); font-weight: 500; font-stretch: 125%; font-size: clamp(22px, 3.6vw, 46px); letter-spacing: .42em; margin-right: -.42em; }
 .fb-box { position: absolute; z-index: 5; left: 50%; top: 50%; opacity: 0; transform: translate(-50%,-50%); background: #da1f26; padding: .06em .28em .14em; font-size: clamp(44px, 7.5vw, 112px); box-shadow: 0 10px 40px rgba(0,0,0,.18); }
 .fx-city { background: #050608; contain: strict; }
-.nc-scene { position: absolute; inset: 0; will-change: transform; transform-origin: 50% 46%; }
-.nc-scene img, .nc-fallback { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 30% 72%; filter: saturate(1.1) contrast(1.06); }
-@media (max-width: 760px) { .nc-scene img { object-position: 13% 66%; } }   /* keep the Empire State in frame on phones */
+.nc-scene { position: absolute; inset: 0; will-change: transform; transform-origin: 50% 62%; }
+.nc-scene img, .nc-fallback { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 51% 40%; filter: saturate(1.08) contrast(1.05); }
+/* the Empire State Building sits at the photo's center: keep it centered and set the box below its lit top */
+.fx-city .nc-box { top: 62%; }
 .nc-fallback { background: radial-gradient(60% 40% at 50% 70%, #3a2412, #0b0d12 70%); }
 .nc-haze { position: absolute; left: 0; top: 18%; width: 200%; height: 60%; opacity: .14; background-repeat: repeat-x; will-change: transform; pointer-events: none;
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
 .nc-grade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(4,6,10,.72) 0%, rgba(4,6,10,.18) 32%, rgba(0,0,0,0) 55%, rgba(0,0,0,.35) 100%),
   radial-gradient(120% 90% at 50% 50%, transparent 55%, rgba(0,0,0,.55) 100%); }
-.nc-glow { position: absolute; inset: 0; opacity: 0; background: radial-gradient(34% 22% at 50% 50%, rgba(218,31,38,.38), rgba(218,31,38,0) 100%); will-change: opacity; }
+.nc-glow { position: absolute; inset: 0; opacity: 0; background: radial-gradient(34% 22% at 50% 62%, rgba(218,31,38,.38), rgba(218,31,38,0) 100%); will-change: opacity; }
 .nc-box { will-change: transform; box-shadow: 0 14px 50px rgba(0,0,0,.55); }
 .nc-red { position: absolute; inset: 0; z-index: 8; opacity: 0; background: #da1f26; will-change: transform;
   box-shadow: inset 0 -40px 40px -20px rgba(0,0,0,.35), 0 30px 60px rgba(0,0,0,.35); }

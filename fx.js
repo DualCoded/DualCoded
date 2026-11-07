@@ -175,9 +175,9 @@
   // ================== 732 · NIGHT CITY ==================
   // Moody aerial night skyline (real photo), slow drone drift, haze. The red "dualcoded" box slams in,
   // then the camera dives into the box until the screen is solid red, and the red lifts off to the store.
-  // Photo: "aerial photo of Empire State building during nighttime" (Midtown Manhattan), free under the
-  // Unsplash License (https://unsplash.com/photos/IRXYNAMlUtw).
-  const CITY_URL = "https://images.unsplash.com/photo-1499463217683-ee3c9ce038f1?auto=format&fit=crop&q=78&w=" +
+  // Photo: Midtown Manhattan at night with the Empire State Building and One Vanderbilt ("city with high rise
+  // buildings during night time"), free under the Unsplash License (https://unsplash.com/photos/IBnLN2anGkg).
+  const CITY_URL = "https://images.unsplash.com/photo-1607606823587-85c1bbd76c8c?auto=format&fit=crop&q=78&w=" +
     (innerWidth < 760 ? 1100 : 2200);
   const cityImg = new Image();
   cityImg.referrerPolicy = "no-referrer";
