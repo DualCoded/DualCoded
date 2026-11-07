@@ -246,7 +246,7 @@ body[data-theme="508"] .badge { left: auto; right: 12px; top: auto; bottom: 16px
 .sold h3 { margin: 0; padding: 0 28px 14px; font-size: 13px; font-weight: 600; color: var(--mute); }
 .sold-row { display: flex; gap: 14px; overflow-x: auto; padding: 0 28px 10px; scrollbar-width: none; }
 .sold-row::-webkit-scrollbar { display: none; }
-.sold-item { position: relative; flex: 0 0 140px; display: block; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.sold-item { position: relative; flex: 0 0 140px; width: 140px; min-width: 0; display: block; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .sold-item:hover img { filter: grayscale(.2) contrast(1) brightness(.95); }
 .sold-item img { transition: filter .25s; }
 .sold-item small { display: block; margin-top: 2px; font-size: 11px; color: var(--mute); opacity: .8; }
@@ -260,7 +260,7 @@ body[data-theme="508"] .badge { left: auto; right: 12px; top: auto; bottom: 16px
 .sold-item img { width: 140px; aspect-ratio: 4/5; object-fit: cover; filter: grayscale(1) contrast(.9) brightness(.8); }
 .sold-item span { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%) rotate(-10deg); font-weight: 800; font-stretch: 70%; font-size: 26px; letter-spacing: .06em; color: #fff; border: 2px solid #fff; padding: 0 8px; }
 body[data-theme="508"] .sold-item span { font-family: var(--type); font-weight: 400; font-stretch: 100%; color: #a3261c; border-color: #a3261c; background: rgba(244,239,229,.7); }
-.sold-item p { margin: 8px 0 0; font-size: 12px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sold-item p { max-width: 140px; margin: 8px 0 0; font-size: 12px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .foot { display: flex; flex-wrap: wrap; gap: 28px; justify-content: space-between; align-items: flex-end; padding: 56px 28px 64px; border-top: 1px solid var(--line); color: var(--mute); }
 .foot p { margin: 0; }
