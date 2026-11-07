@@ -16,11 +16,6 @@
   const money = n => { const v = Number(n); return v ? "$" + (v % 1 ? v.toFixed(2) : v) : ""; };
   const avail = side => ITEMS.filter(i => i.status !== "sold" && (side === "all" || i.side === side));
   const isNew = i => i.created_at && (Date.now() - Date.parse(i.created_at)) < 7 * 864e5;
-  const chromeCross = () => "data:image/svg+xml," + encodeURIComponent(DCFX.crossSVG("pg"));
-  const num = (color, cls, style) => {
-    const [c, d] = DCFX.CEM[color] || DCFX.CEM.white;
-    return `<span class="${cls}" style="color:${c};-webkit-text-stroke:2px ${d};${style || ""}">732</span>`;
-  };
   // small diamond of colored "732"s for the 732 hero (rows of 1-2-3-2-1, overlapping like a print)
   function clusterHTML() {
     const rows = [1, 2, 3, 2, 1], w = 96, sx = w * .76, sy = w * DCFX.CROSS_RATIO * .5, out = [];
@@ -339,12 +334,37 @@
   $("#grid").addEventListener("click", e => { const c = e.target.closest(".card"); if (c) openItemNav(c.dataset.id); });
   $("#grid").addEventListener("keydown", e => { const c = e.target.closest(".card"); if (c && e.key === "Enter") openItemNav(c.dataset.id); });
 
+  const SOLD_MAX = 40;
   function renderSold() {
-    const sold = ITEMS.filter(i => i.status === "sold" && (st.side === "all" || i.side === st.side))
-      .sort((a, b) => (b.sold_at || b.created_at || "").localeCompare(a.sold_at || a.created_at || "")).slice(0, 14);
+    const all = ITEMS.filter(i => i.status === "sold" && (st.side === "all" || i.side === st.side))
+      .sort((a, b) => (b.sold_at || b.created_at || "").localeCompare(a.sold_at || a.created_at || ""));
+    const sold = all.slice(0, SOLD_MAX);
     $("#soldWrap").hidden = !sold.length;
-    $("#soldRow").innerHTML = sold.map(i => `<div class="sold-item"><img src="${esc(i.photos?.[0] || "")}" alt="${esc(i.title)}" loading="lazy" referrerpolicy="no-referrer"><span>SOLD</span><p>${esc(i.title)}</p></div>`).join("");
+    $("#soldRow").innerHTML = sold.map(i => `<button class="sold-item" data-id="${esc(i.id)}" aria-label="${esc(i.title)}, sold">
+        <img src="${esc(i.photos?.[0] || "")}" alt="" loading="lazy" referrerpolicy="no-referrer"><span>SOLD</span>
+        <p>${esc(i.title)}</p>${money(i.price) ? `<small>Sold for ${money(i.price)}</small>` : ""}</button>`).join("")
+      + (all.length > SOLD_MAX || STATS ? `<a class="sold-more" href="${esc(C.DEPOP_SHOP)}" target="_blank" rel="noopener">
+        <b>${STATS?.sold || all.length}</b><span>sold on Depop</span><em>See them all ↗</em></a>` : "");
   }
+  $("#soldRow").addEventListener("click", e => { const b = e.target.closest(".sold-item"); if (b) openItemNav(b.dataset.id); });
+
+  // ======================= DEPOP RATING / SOLD =======================
+  let STATS = null;
+  function stars(r) {
+    const pct = Math.max(0, Math.min(5, Number(r) || 0)) / 5 * 100;
+    return `<span class="stars" aria-hidden="true"><span>★★★★★</span><span class="stars-on" style="width:${pct}%">★★★★★</span></span>`;
+  }
+  function renderStats(s) {
+    if (!s) return;
+    STATS = s;
+    const r = Number(s.rating);
+    $("#landWho").innerHTML = `<a href="${esc(C.DEPOP_SHOP)}" target="_blank" rel="noopener" aria-label="Rated ${r.toFixed(1)} out of 5 from ${s.reviews} reviews, ${s.sold} sold on Depop">
+      <span class="ls-line">${stars(r)}<b>${r.toFixed(1)}</b><span class="ls-dim">${s.reviews} reviews</span></span>
+      <span class="ls-line"><b>${s.sold}</b> sold on Depop</span></a>`;
+    $("#soldCount").textContent = `· ${s.sold} sold on Depop`;
+  }
+  renderStats(C.DEPOP_STATS);
+  DC.stats().then(s => { if (s) { renderStats(s); if (view === "store") renderSold(); } }).catch(() => {});
 
   // ======================= ITEM =======================
   function openItemNav(id) {
