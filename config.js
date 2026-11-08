@@ -37,4 +37,22 @@ window.DC_CONFIG = {
   },
 
   CATEGORIES: ["Tees", "Hoodies", "Jackets", "Bottoms", "Shoes", "Accessories", "Other"],
+
+  // Brand chips under each side's title. [name, words to look for in the item's brand + title, always show?]
+  // "always" brands show even at 0 (dimmed, tapping one invites a DM); the rest only appear when you have one.
+  BRANDS: {
+    "732": [
+      ["Bape", "bape|bathing ape", 1], ["Stüssy", "st[uü]ssy", 1], ["Supreme", "supreme", 1],
+      ["Cactus Jack", "travis|cactus jack|astroworld|utopia|rodeo", 1], ["Chrome Hearts", "chrome hearts", 1],
+      ["Gallery Dept", "gallery dept", 1], ["Concert tees", "tour|concert|merch", 1],
+      ["Yeezy", "yeezy|yzy"], ["Opium", "carti|opium|ken carson|osamason|destroy lonely"], ["Off-White", "off-?white"],
+      ["Denim Tears", "denim tears"], ["Nike", "nike|jordan"], ["Golf Wang", "golf wang|golf le fleur|tyler"],
+    ],
+    "508": [
+      ["Carhartt", "carhartt", 1], ["Vintage", "vintage", 1], ["Y2K", "y2k|ed hardy", 1], ["Workwear", "carhartt|dickies|workwear|wilsons", 1],
+      ["College", "university|college|yale|ucla|tufts|lehigh"], ["Harley-Davidson", "harley"], ["Ralph Lauren", "ralph lauren|polo"],
+      ["Leather", "leather"], ["Champion", "champion"], ["Columbia", "columbia"],
+    ],
+  },
+  PROMISE: { "732": "Authenticity guaranteed", "508": "Flaws always shown" },
 };

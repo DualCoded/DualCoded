@@ -9,7 +9,7 @@
   let ITEMS = [];
   let view = "map";
   let modalOpen = false, modalPushed = false, busy = false;
-  const st = { side: "all", cat: "All", size: "", q: "", sort: "new" };
+  const st = { side: "all", cat: "All", size: "", q: "", sort: "new", brand: "" };
   let map = null;
 
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -229,30 +229,55 @@
   });
 
   // ======================= STORE =======================
+  // ---- brand chips: counts from the item's brand + title; "always" brands show dimmed at 0 ----
+  const BRANDS = Object.fromEntries(Object.entries(C.BRANDS || {}).map(([s, list]) =>
+    [s, list.map(([name, pat, always]) => ({ name, re: new RegExp(pat, "i"), always: !!always, side: s }))]));
+  const brandText = i => `${i.brand || ""} ${i.title || ""}`;
+  function brandsFor(side) {
+    const pool = avail(side), defs = side === "all" ? [...(BRANDS["732"] || []), ...(BRANDS["508"] || [])] : (BRANDS[side] || []);
+    const seen = new Set(), out = [];
+    for (const b of defs) {
+      if (seen.has(b.name)) continue; seen.add(b.name);
+      const n = pool.filter(i => (side === "all" ? i.side === b.side : true) && b.re.test(brandText(i))).length;
+      if (n || (b.always && side !== "all")) out.push({ ...b, n });
+    }
+    return out;
+  }
+  const promise = side => side === "all" ? `${C.PROMISE["732"]} · ${C.PROMISE["508"].toLowerCase()}` : C.PROMISE[side];
+  function chipsHTML(side) {
+    const n = avail(side).length;
+    return `<div class="brands" role="group" aria-label="Filter by brand">
+      <button class="brand${st.brand ? "" : " on"}" data-brand="" aria-pressed="${!st.brand}">All <em>${n}</em></button>
+      ${brandsFor(side).map(b => `<button class="brand${b.n ? "" : " zero"}${st.brand === b.name ? " on" : ""}" data-brand="${esc(b.name)}" aria-pressed="${st.brand === b.name}">${esc(b.name)} <em>${b.n}</em></button>`).join("")}</div>`;
+  }
+
   function heroHTML(side) {
-    const n = avail(side).length, count = `${n} piece${n === 1 ? "" : "s"} available`;
+    const check = `<p class="hero-promise"><i aria-hidden="true">✓</i>${esc(promise(side))}</p>`;
     if (side === "732") return `<div class="hero-732">
         ${clusterHTML()}
         <p class="hero-who"><b>${esc(SIDES["732"].owner)}</b> · ${esc(SIDES["732"].place)} · 732</p>
-        <h1 class="hero-title">Streetwear</h1>
-        <p class="hero-tag">${esc(SIDES["732"].tagline)}</p>
-        <p class="hero-count">${count}</p></div>`;
+        <h1 class="hero-title">Streetwear</h1>${check}${chipsHTML(side)}</div>`;
     if (side === "508") return `<div class="hero-508">
         <span class="hero-tape">508</span>
-        <p class="hero-who"><b>${esc(SIDES["508"].owner)}</b> · ${esc(SIDES["508"].place)}</p>
-        <h1 class="hero-title">Vintage / Y2K</h1>
-        <p class="hero-tag">${esc(SIDES["508"].tagline)}</p>
-        <p class="hero-count">${count}</p></div>`;
+        <p class="hero-who"><b>${esc(SIDES["508"].owner)}</b> · ${esc(SIDES["508"].place)} · 508</p>
+        <h1 class="hero-title">Vintage / Y2K</h1>${check}${chipsHTML(side)}</div>`;
     return `<div class="hero-all">
         <p class="hero-who">Both racks · <b>${esc(SIDES["732"].owner)}</b> (732) and <b>${esc(SIDES["508"].owner)}</b> (508)</p>
-        <h1 class="hero-title">732 <span>×</span> 508</h1>
-        <p class="hero-tag">Streetwear, artist merch, vintage, Y2K and workwear. Everything up for sale right now.</p>
-        <p class="hero-count">${count}</p></div>`;
+        <h1 class="hero-title">732 <span>×</span> 508</h1>${check}${chipsHTML(side)}</div>`;
   }
+  $("#hero").addEventListener("click", e => {
+    const b = e.target.closest(".brand"); if (!b) return;
+    st.brand = b.dataset.brand === st.brand ? "" : b.dataset.brand;   // tapping the active chip again clears it
+    $("#hero").querySelectorAll(".brand").forEach(c => {
+      const on = c.dataset.brand === st.brand; c.classList.toggle("on", on); c.setAttribute("aria-pressed", on);
+    });
+    renderGrid();
+    if (st.brand && innerWidth < 760) $(".filters").scrollIntoView({ behavior: REDUCE ? "auto" : "smooth", block: "start" });
+  });
 
   function setSide(side, force) {
     if (!force && side === st.side) return;
-    st.side = side; st.cat = "All"; st.size = ""; st.q = ""; $("#search").value = "";
+    st.side = side; st.cat = "All"; st.size = ""; st.q = ""; st.brand = ""; $("#search").value = "";
     theme(side);
     document.querySelectorAll("#switch button").forEach(b => b.classList.toggle("on", b.dataset.side === side));
     moveBar();
@@ -290,6 +315,10 @@
 
   function filtered() {
     let list = avail(st.side);
+    if (st.brand) {
+      const defs = [...(BRANDS["732"] || []), ...(BRANDS["508"] || [])].filter(b => b.name === st.brand);
+      list = list.filter(i => defs.some(b => (st.side === "all" ? i.side === b.side : true) && b.re.test(brandText(i))));
+    }
     if (st.cat !== "All") list = list.filter(i => (i.category || "Other") === st.cat);
     if (st.size) list = list.filter(i => (i.size || "").trim() === st.size);
     if (st.q) list = list.filter(i => `${i.title} ${i.brand} ${i.category} ${i.description}`.toLowerCase().includes(st.q));
@@ -326,8 +355,13 @@
   }
 
   function renderGrid() {
-    const list = filtered(), grid = $("#grid");
-    $("#empty").hidden = list.length > 0;
+    const list = filtered(), grid = $("#grid"), empty = $("#empty");
+    empty.hidden = list.length > 0;
+    // nothing to show: a brand you're out of turns into an invitation to DM instead of a dead end
+    const what = st.brand + (st.cat !== "All" ? " " + st.cat.toLowerCase() : "");
+    empty.innerHTML = st.brand && !list.length
+      ? `No ${esc(what)} right now. <a href="${DM_URL}" target="_blank" rel="noopener">DM us what you're looking for →</a> We find pieces all the time.`
+      : `Nothing here right now. New pieces go up all the time, <a href="${DM_URL}" target="_blank" rel="noopener">DM us what you're looking for →</a>`;
     grid.innerHTML = list.map(cardHTML).join("");
     grid.querySelectorAll(".card").forEach(c => REDUCE ? c.classList.add("seen") : io.observe(c));
   }
@@ -362,6 +396,23 @@
       <span class="ls-line">${stars(r)}<b>${r.toFixed(1)}</b><span class="ls-dim">${s.reviews} reviews</span></span>
       <span class="ls-line"><b>${s.sold}</b> sold on Depop</span></a>`;
     $("#soldCount").textContent = `· ${s.sold} sold on Depop`;
+    renderTicker(s.recent);
+  }
+
+  // reviews ticker along the bottom of the map: real Depop reviews (kept fresh by the sync), loops seamlessly
+  function renderTicker(list) {
+    const el = $("#ticker"); if (!el || !Array.isArray(list)) return;
+    // descriptive reviews read best; one-word ones ("great", "GOOD") only fill in when there are few others
+    const all = list.filter(r => r && r.t && r.t.trim().length > 2);
+    const long = all.filter(r => r.t.trim().length >= 14);
+    const good = (long.length >= 6 ? long : all).slice(0, 20);
+    if (!good.length) { el.hidden = true; return; }
+    const one = good.map(r => `<span class="rv"><span class="rv-st" aria-hidden="true">★★★★★</span><q>${esc(r.t)}</q><span class="rv-who">@${esc(r.u)}</span></span>`).join("");
+    el.querySelector(".tk-track").innerHTML = one + `<span aria-hidden="true" class="tk-copy">${one}</span>`;
+    const tr = el.querySelector(".tk-track");
+    tr.style.animationDuration = Math.max(40, Math.round(good.reduce((n, r) => n + r.t.length, 0) / 9)) + "s";   // same reading speed however many reviews
+    el.querySelector(".tk-src").href = C.DEPOP_SHOP;
+    el.hidden = false;
   }
   renderStats(C.DEPOP_STATS);
   DC.stats().then(s => { if (s) { renderStats(s); if (view === "store") renderSold(); } }).catch(() => {});

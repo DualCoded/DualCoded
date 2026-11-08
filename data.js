@@ -130,7 +130,7 @@
   // Depop shop rating / reviews / sold count (kept fresh by the Depop sync); config.js has a fallback
   async function stats() {
     if (LIVE) {
-      const { data, error } = await client().from("shop_stats").select("rating,reviews,sold").eq("id", 1).maybeSingle();
+      const { data, error } = await client().from("shop_stats").select("rating,reviews,sold,recent").eq("id", 1).maybeSingle();
       if (!error && data) return data;
     }
     return C.DEPOP_STATS || null;
