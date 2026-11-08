@@ -469,15 +469,16 @@
       before.splice(0, before.length, ...others.map(c => c.getBoundingClientRect()));
     }
     const f = fly ? flight([img], from, from, from, 1, 1, 1, t => t) : null;   // parked on the card's spot for the swap
-    if (f) { f.el.querySelectorAll("img").forEach(im => im.style.filter = "grayscale(1) contrast(.9) brightness(.8)"); f.el.getAnimations({ subtree: true }).forEach(a => a.pause()); }
+    if (f) { f.el.querySelectorAll("img").forEach(im => im.style.filter = "grayscale(1) contrast(.9) brightness(.8)"); f.el.style.visibility = ""; }
     card.remove();
     others.forEach((c, k) => { const a = before[k], b = c.getBoundingClientRect(); if (a.left !== b.left || a.top !== b.top) c.animate([{ transform: `translate(${a.left - b.left}px,${a.top - b.top}px)` }, { transform: "none" }], { duration: 520, easing: "cubic-bezier(.2,.8,.2,1)" }); });
     if (f) {
       const t = target.querySelector("img").getBoundingClientRect();
-      f.el.remove();
       const f2 = flight([img], from, t, from, 1, 1, 700, bez(.6, 0, .25, 1));
       f2.el.querySelectorAll("img").forEach(im => im.style.filter = "grayscale(1) contrast(.9) brightness(.8)");
-      await f2.done;
+      await f2.ready;
+      f2.go(); f.el.remove();
+      await f2.go();
       f2.el.remove(); target.style.visibility = "";
       target.querySelector("span")?.animate([{ transform: "translate(-50%,-50%) rotate(-10deg) scale(1.6)", opacity: 0 }, { transform: "translate(-50%,-50%) rotate(-10deg) scale(1)", opacity: 1 }], { duration: 260, easing: "cubic-bezier(.5,0,.3,1)" });
     }
@@ -633,26 +634,37 @@
   // The box (overflow hidden) morphs from one shape to the other while each photo inside is counter-scaled
   // every step, so it always looks object-fit: cover and never stretches. Only transforms/opacity animate.
   // imgs: source <img>s (2nd = hover photo to fade out), base: the bigger rect the flyer is laid out at.
-  function flight(imgs, from, to, base, z0, z1, dur, ease) {
-    const W = base.width, H = base.height, N = 32;
+  // rot: the card's hover tilt at the start ({rx, ry, rz, s}); it eases out to flat over the flight.
+  // The flight is built paused: call go() once the photos are decoded, so the first frames never stall.
+  function flight(imgs, from, to, base, z0, z1, dur, ease, rot) {
+    const W = base.width, H = base.height, N = 40, R = rot || { rx: 0, ry: 0, rz: 0, s: 1 };
     const f = document.createElement("div"); f.className = "flyer";
     Object.assign(f.style, { left: base.left + "px", top: base.top + "px", width: W + "px", height: H + "px" });
     const steps = [...Array(N + 1)].map((_, k) => {
       const e = ease(k / N), L = (a, b) => a + (b - a) * e;
-      return { x: L(from.left, to.left), y: L(from.top, to.top), w: Math.max(1, L(from.width, to.width)), h: Math.max(1, L(from.height, to.height)), z: L(z0, z1) };
+      return { x: L(from.left, to.left), y: L(from.top, to.top), w: Math.max(1, L(from.width, to.width)), h: Math.max(1, L(from.height, to.height)), z: L(z0, z1), q: 1 - e };
     });
-    const anims = [f.animate(steps.map(s => ({ transform: `translate(${s.x - base.left}px,${s.y - base.top}px) scale(${s.w / W},${s.h / H})` })), { duration: dur, fill: "both" })];
+    const tilt = s => R.rx || R.ry || R.rz || R.s !== 1
+      ? `translate(${s.w / 2}px,${s.h / 2}px) perspective(800px) rotateX(${R.rx * s.q}deg) rotateY(${R.ry * s.q}deg) rotate(${R.rz * s.q}deg) scale(${1 + (R.s - 1) * s.q}) translate(${-s.w / 2}px,${-s.h / 2}px) ` : "";
+    const anims = [f.animate(steps.map(s => ({ transform: `translate(${s.x - base.left}px,${s.y - base.top}px) ${tilt(s)}scale(${s.w / W},${s.h / H})` })), { duration: dur, fill: "both" })];
+    const pics = [];
     imgs.filter(Boolean).forEach((src, n) => {
       const nw = src.naturalWidth || W, nh = src.naturalHeight || H, s1 = Math.max(W / nw, H / nh);
       const im = document.createElement("img");
-      im.src = src.currentSrc || src.src; im.alt = ""; im.referrerPolicy = "no-referrer";
+      im.decoding = "sync"; im.alt = ""; im.referrerPolicy = "no-referrer"; im.src = src.currentSrc || src.src;
       Object.assign(im.style, { position: "absolute", width: nw * s1 + "px", height: nh * s1 + "px", left: (W - nw * s1) / 2 + "px", top: (H - nh * s1) / 2 + "px", objectFit: "fill", transformOrigin: "50% 50%", willChange: "transform" });
-      f.appendChild(im);
+      f.appendChild(im); pics.push(im);
       anims.push(im.animate(steps.map(s => { const c = Math.max(s.w / nw, s.h / nh) * s.z / s1; return { transform: `scale(${c * W / s.w},${c * H / s.h})` }; }), { duration: dur, fill: "both" }));
       if (n) anims.push(im.animate([{ opacity: 1 }, { opacity: 0 }], { duration: dur * .35, easing: "ease-out", fill: "forwards" }));
     });
+    anims.forEach(a => a.pause());
+    f.style.visibility = "hidden";
     document.body.appendChild(f);
-    return { el: f, done: Promise.all(anims.map(a => capped(a, dur + 500))) };
+    let done;
+    const go = () => { if (!done) { f.style.visibility = ""; anims.forEach(a => a.play()); done = Promise.all(anims.map(a => capped(a, dur + 500))); } return done; };
+    // decode at flight size before the first frame (capped: a slow phone still flies, just maybe a beat late)
+    const ready = Promise.race([Promise.all(pics.map(im => im.decode().catch(() => {}))), new Promise(r => setTimeout(r, 160))]);
+    return { el: f, ready, go };
   }
   // the photo's on-screen box inside a card (508 cards inset the photo inside a paper border) and its hover zoom
   function cardPhotoBox(ci) {
@@ -662,16 +674,28 @@
   async function flyIn(card) {
     const ci = card.querySelector(".card-img"), srcImg = ci?.querySelector("img:not(.alt)"), target = $("#galTrack img"), mcard = $(".modal-card");
     if (!srcImg || !target) return;
+    // the card may be leaning toward the cursor (732 tilt) or pinned at an angle (508 paper prints):
+    // read that pose, lay the card flat to measure it, and let the flyer ease out of the same pose
+    const tf = ci.style.transform || "", num = re => +((tf.match(re) || [])[1] || 0);
+    const rot = { rx: num(/rotateX\((-?[\d.]+)deg/), ry: num(/rotateY\((-?[\d.]+)deg/), rz: parseFloat(ci.style.getPropertyValue("--tilt")) || 0, s: num(/scale\(([\d.]+)\)/) || 1 };
+    const keep = [ci.style.transition, ci.style.transform];
+    ci.style.transition = "none"; ci.style.transform = "none";
     const { rect: from, zoom } = cardPhotoBox(ci), to = target.getBoundingClientRect();
+    [ci.style.transition, ci.style.transform] = keep;   // measured flat; nothing painted in between
     if (!from.width || !to.width || from.bottom < 0 || from.top > innerHeight) return;
     flyFrom = card;
     const alt = ci.querySelector("img.alt"), altOn = alt && alt.complete && +getComputedStyle(alt).opacity > .5;
-    const f = flight([srcImg, altOn && alt], from, to, to, zoom, 1, 560, EASE_OUT);
-    ci.style.visibility = "hidden";
+    const f = flight([srcImg, altOn && alt], from, to, to, zoom, 1, 560, EASE_OUT, rot);
+    mcard.style.animation = "none"; mcard.style.opacity = "0";
+    target.decode().catch(() => {});   // the gallery photo decodes alongside the flight
+    await f.ready;
+    untilt();
+    ci.style.transition = "none"; ci.style.transform = "none"; ci.style.visibility = "hidden";   // flat again for the trip back
+    f.go();
     // the popup fades in underneath while the photo is still landing: no hard swap at the end
-    mcard.style.animation = "none";
+    mcard.style.opacity = "";
     capped(mcard.animate([{ opacity: 0, transform: "translateY(14px)" }, { opacity: 1, transform: "none" }], { duration: 340, delay: 200, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" }), 1000);
-    await f.done;
+    await f.go();
     try { await Promise.race([target.decode(), new Promise(r => setTimeout(r, 300))]); } catch (e) {}   // never reveal a not-yet-painted photo
     f.el.remove();
   }
@@ -680,14 +704,16 @@
     if (!card || !card.isConnected) return false;
     const ci = card.querySelector(".card-img"), photo = [...$("#galTrack").querySelectorAll("img")]
       .find(im => { const r = im.getBoundingClientRect(); return r.right > 0 && r.left < innerWidth && r.width; });
-    const done = () => { ci.style.visibility = ""; };
+    const done = () => { ci.style.visibility = ""; ci.style.transition = ""; ci.style.transform = ""; };   // 508 prints swing back to their angle
     if (!photo || REDUCE) { done(); return false; }
     const from = photo.getBoundingClientRect(), { rect: to } = cardPhotoBox(ci);
     if (to.bottom < 0 || to.top > innerHeight) { done(); return false; }
     const f = flight([photo], from, to, from, 1, 1, 440, EASE_BACK);
+    await f.ready;
+    f.go();
     $(".modal-card").style.visibility = "hidden";
     $(".modal-back").animate([{ opacity: 1 }, { opacity: 0 }], { duration: 360, fill: "forwards" });
-    await f.done;
+    await f.go();
     f.el.remove(); done();
     $(".modal-card").style.visibility = ""; $(".modal-back").getAnimations().forEach(a => a.cancel());
     return true;
