@@ -691,12 +691,14 @@
     await f.ready;
     untilt();
     ci.style.transition = "none"; ci.style.transform = "none"; ci.style.visibility = "hidden";   // flat again for the trip back
+    target.style.visibility = "hidden";   // one photo on screen at a time: the popup's own copy waits for the flyer to land
     f.go();
     // the popup fades in underneath while the photo is still landing: no hard swap at the end
     mcard.style.opacity = "";
     capped(mcard.animate([{ opacity: 0, transform: "translateY(14px)" }, { opacity: 1, transform: "none" }], { duration: 340, delay: 200, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" }), 1000);
     await f.go();
     try { await Promise.race([target.decode(), new Promise(r => setTimeout(r, 300))]); } catch (e) {}   // never reveal a not-yet-painted photo
+    target.style.visibility = "";
     f.el.remove();
   }
   async function flyOut() {
