@@ -678,15 +678,16 @@
     // read that pose, lay the card flat to measure it, and let the flyer ease out of the same pose
     const tf = ci.style.transform || "", num = re => +((tf.match(re) || [])[1] || 0);
     const rot = { rx: num(/rotateX\((-?[\d.]+)deg/), ry: num(/rotateY\((-?[\d.]+)deg/), rz: parseFloat(ci.style.getPropertyValue("--tilt")) || 0, s: num(/scale\(([\d.]+)\)/) || 1 };
+    // measure where the popup really ends up: its CSS entrance (slide up 50px) must be off first
+    mcard.style.animation = "none"; mcard.style.opacity = "0";
     const keep = [ci.style.transition, ci.style.transform];
     ci.style.transition = "none"; ci.style.transform = "none";
     const { rect: from, zoom } = cardPhotoBox(ci), to = target.getBoundingClientRect();
     [ci.style.transition, ci.style.transform] = keep;   // measured flat; nothing painted in between
-    if (!from.width || !to.width || from.bottom < 0 || from.top > innerHeight) return;
+    if (!from.width || !to.width || from.bottom < 0 || from.top > innerHeight) { mcard.style.opacity = ""; mcard.style.animation = ""; return; }
     flyFrom = card;
     const alt = ci.querySelector("img.alt"), altOn = alt && alt.complete && +getComputedStyle(alt).opacity > .5;
     const f = flight([srcImg, altOn && alt], from, to, to, zoom, 1, 560, EASE_OUT, rot);
-    mcard.style.animation = "none"; mcard.style.opacity = "0";
     target.decode().catch(() => {});   // the gallery photo decodes alongside the flight
     await f.ready;
     untilt();
@@ -698,6 +699,11 @@
     capped(mcard.animate([{ opacity: 0, transform: "translateY(14px)" }, { opacity: 1, transform: "none" }], { duration: 340, delay: 200, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" }), 1000);
     await f.go();
     try { await Promise.race([target.decode(), new Promise(r => setTimeout(r, 300))]); } catch (e) {}   // never reveal a not-yet-painted photo
+    // if the popup's layout moved while flying (window resized, late font), glide the last few px instead of snapping
+    const now = target.getBoundingClientRect();
+    if (Math.abs(now.left - to.left) + Math.abs(now.top - to.top) + Math.abs(now.width - to.width) + Math.abs(now.height - to.height) > 2)
+      await capped(f.el.animate([{ transform: "none" }, { transform: `translate(${now.left - to.left}px,${now.top - to.top}px) scale(${now.width / to.width},${now.height / to.height})` }],
+        { duration: 160, easing: "ease-out", fill: "forwards" }), 400);
     target.style.visibility = "";
     f.el.remove();
   }
