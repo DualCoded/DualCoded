@@ -68,6 +68,7 @@
       proj = d3.geoMercator().fitExtent(ext, mobile ? { type: "MultiPoint", coordinates: [[-75.1, 39.6], [-69.8, 42.9]] } : bbox);
       path = d3.geoPath(proj);
       render();
+      justIn(null);
     }
 
     function render() {
@@ -143,15 +144,52 @@
     function hover(side) {
       hovered = side;
       gStates.selectAll("path").classed("hot-508", d => side === "508" && d.id === "25").classed("hot-732", d => side === "732" && d.id === "34");
-      const pv = $("#preview");
-      if (!side || mobile) { pv.classList.remove("show"); return; }
-      const items = avail(side).sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0)).slice(0, 4);
-      pv.innerHTML = items.map(i => `<img src="${esc(i.photos?.[0])}" alt="" referrerpolicy="no-referrer">`).join("");
-      const [x, y] = proj([SIDES[side].lon, SIDES[side].lat]);
-      let left = side === "508" ? x + 30 : x - 30 - 324, top = y + 112;
-      pv.style.left = Math.max(12, Math.min(W - 336, left)) + "px";
-      pv.style.top = Math.max(12, Math.min(H - 112, top)) + "px";
-      pv.classList.add("show");
+    }
+
+    // ---- "Just in": each side's newest pieces pop out of its pin as polaroids ----
+    // fans are offsets from the pin in polaroid widths (+ tilt), aimed at open space:
+    // desktop: 732 down-right over the Atlantic, 508 up-left over Massachusetts; phone: 732 right, 508 below Cape Cod
+    const FANS = {
+      desk: { "732": [[0.55, 0.55, -8], [1.55, 0.95, 5], [2.5, 0.45, -3]], "508": [[-2.5, -1.6, -4], [-1.5, -2.0, 5], [-0.5, -1.55, -6]] },
+      phone: { "732": [[1.15, -0.2, -7], [2.2, 0.1, 6]], "508": [[0.03, 1.5, 5], [0.85, 1.25, -6]] },
+    };
+    const polaLayer = document.createElement("div"); polaLayer.className = "pola-layer";
+    $("#landing").appendChild(polaLayer);
+    polaLayer.addEventListener("click", e => {
+      const p = e.target.closest(".pola"); if (!p || e.metaKey || e.ctrlKey || e.shiftKey) return;   // modifier-click keeps the plain link
+      e.preventDefault(); openItemNav(p.dataset.id, p);   // the popup opens over the map; closing lands back here
+    });
+    function justIn(delay) {   // delay: ms before they pop out; null = place without animating
+      const fans = FANS[mobile ? "phone" : "desk"], w = mobile ? 60 : 96;
+      const newest = side => avail(side).filter(i => i.photos?.[0]).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+      let html = "";
+      const pops = [];
+      ["732", "508"].forEach(side => {
+        const [px, py] = proj([SIDES[side].lon, SIDES[side].lat]);
+        const list = newest(side).slice(0, fans[side].length);
+        list.forEach((it, k) => {
+          const [fx, fy, r] = fans[side][k], x = px + fx * w - w / 2, y = py + fy * w - w / 2;
+          html += `<a class="pola" data-id="${esc(it.id)}" data-side="${side}" href="#/item/${encodeURIComponent(it.id)}" aria-label="New: ${esc(it.title)}, ${money(it.price)}"
+            style="left:${x}px;top:${y}px;width:${w}px;--r:${r}deg;--tilt:${r}deg;z-index:${k + 1}">${side === "508" ? '<i class="pola-tape"></i>' : ""}<img src="${esc(it.photos[0])}" alt="" referrerpolicy="no-referrer"><span><b>$${Math.round(+it.price)}</b><small>new</small></span></a>`;
+          pops.push([px - x - w / 2, py - y - w / 2, side === "508" ? 260 : 0, k, r]);
+        });
+        if (list.length && !mobile) {   // a quiet label over the highest polaroid, clear of the pin
+          const [fx, fy] = fans[side].slice(0, list.length).reduce((a, b) => (b[1] < a[1] ? b : a));
+          html += `<span class="pola-label" style="left:${px + fx * w - w / 2}px;top:${py + fy * w - w / 2 - 20}px">Just in</span>`;
+        }
+      });
+      polaLayer.innerHTML = html;
+      if (delay == null || REDUCE) return;
+      // each one shoots out of its pin: tiny on the pin, overshoots a touch, settles at its tilt
+      polaLayer.querySelectorAll(".pola").forEach((el, n) => {
+        const [dx, dy, extra, k, r] = pops[n];
+        el.animate([
+          { transform: `translate(${dx}px,${dy}px) rotate(0deg) scale(.15)`, opacity: 0 },
+          { transform: `translate(0,-6px) rotate(${r * 1.6}deg) scale(1.04)`, opacity: 1, offset: .7 },
+          { transform: `rotate(${r}deg)`, opacity: 1 },
+        ], { duration: 700, delay: delay + extra + k * 130, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" });
+      });
+      polaLayer.querySelectorAll(".pola-label").forEach(el => el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 400, delay: delay + 700, fill: "backwards" }));
     }
 
     async function zoomIn(side) {
@@ -173,13 +211,14 @@
         await world.transition().duration(1000).ease(d3.easeCubicInOut).attr("transform", "translate(0,0) scale(1)").end().catch(() => {});
       } else world.interrupt().attr("transform", "translate(0,0) scale(1)");
       [gMarkers.selectAll(".lbl"), gMarkers.selectAll(".rings"), gCities, gRoute, gNames].forEach(s => s.transition().duration(400).style("opacity", 1));
+      justIn(100);
     }
 
     layout();
     let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { if (view === "map") layout(); }, 150); });
     fetch("https://cdn.jsdelivr.net/npm/us-atlas@3.0.1/states-10m.json").then(r => r.json())
       .then(us => { states = topojson.feature(us, us.objects.states).features; render(); }).catch(() => {});
-    return { zoomIn, zoomOut, refreshPreview: () => hovered && hover(hovered) };
+    return { zoomIn, zoomOut, justIn };
   }
 
   $("#landSides").innerHTML = ["732", "508"].map(s =>
@@ -672,7 +711,7 @@
     return r.width < b.width - 1 ? { rect: r, zoom: 1 } : { rect: b, zoom: r.width / b.width || 1 };
   }
   async function flyIn(card) {
-    const ci = card.querySelector(".card-img"), srcImg = ci?.querySelector("img:not(.alt)"), target = $("#galTrack img"), mcard = $(".modal-card");
+    const ci = card.querySelector(".card-img") || card, srcImg = ci?.querySelector("img:not(.alt)"), target = $("#galTrack img"), mcard = $(".modal-card");
     if (!srcImg || !target) return;
     // the card may be leaning toward the cursor (732 tilt) or pinned at an angle (508 paper prints):
     // read that pose, lay the card flat to measure it, and let the flyer ease out of the same pose
@@ -710,12 +749,12 @@
   async function flyOut() {
     const card = flyFrom; flyFrom = null;
     if (!card || !card.isConnected) return false;
-    const ci = card.querySelector(".card-img"), photo = [...$("#galTrack").querySelectorAll("img")]
+    const ci = card.querySelector(".card-img") || card, photo = [...$("#galTrack").querySelectorAll("img")]
       .find(im => { const r = im.getBoundingClientRect(); return r.right > 0 && r.left < innerWidth && r.width; });
     const done = () => { ci.style.visibility = ""; ci.style.transition = ""; ci.style.transform = ""; };   // 508 prints swing back to their angle
     if (!photo || REDUCE) { done(); return false; }
     const from = photo.getBoundingClientRect(), { rect: to } = cardPhotoBox(ci);
-    if (to.bottom < 0 || to.top > innerHeight) { done(); return false; }
+    if (!to.width || to.bottom < 0 || to.top > innerHeight) { done(); return false; }
     const f = flight([photo], from, to, from, 1, 1, 440, EASE_BACK);
     await f.ready;
     f.go();
@@ -752,7 +791,7 @@
     else if (i.depop_url) acts.push(`<a class="btn primary" href="${esc(i.depop_url)}" target="_blank" rel="noopener">Buy on Depop ↗</a>`);
     acts.push(`<a class="btn${i.status !== "sold" && !i.depop_url ? " primary" : ""}" href="${DM_URL}" target="_blank" rel="noopener">${i.status === "sold" || i.depop_url ? "Ask about it on Instagram" : "DM us on Instagram to buy"}</a>`);
     $("#mActions").innerHTML = acts.join("");
-    if (st.side === "all") theme(i.side);
+    if (st.side === "all" || view === "map") theme(i.side);
     const m = $("#modal");
     m.hidden = false;
     m.querySelectorAll(".modal-back, .modal-card, .m-info > *").forEach(el => { el.style.animation = "none"; void el.offsetWidth; el.style.animation = ""; });
@@ -776,7 +815,8 @@
     modalOpen = false;
     lockScroll(false);
     document.title = "dualcoded.supply";
-    if (view === "store") { theme(st.side); await flyOut(); }   // the photo shrinks back into its card (when that card is on screen)
+    theme(view === "store" ? st.side : "map");
+    await flyOut();   // the photo shrinks back into its card or polaroid (when it's on screen)
     $("#modal").hidden = true;
     $(".modal-card").style.animation = "";
   }
@@ -811,6 +851,6 @@
       const [a, b] = location.hash.replace(/^#\/?/, "").split("/");
       if (a === "item" && b) { const it = ITEMS.find(x => String(x.id) === decodeURIComponent(b)); showStore(it?.side || "all"); openItem(decodeURIComponent(b)); }
       else if (SIDES[a] || a === "all") showStore(a);
-      map.refreshPreview();
+      map.justIn(1300);
     });
 })();
