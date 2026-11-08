@@ -458,9 +458,9 @@
     const grid = $("#grid"), from = ci.getBoundingClientRect();
     const target = $(`#soldRow .sold-item[data-id="${CSS.escape(card.dataset.id)}"]`), tr = target?.getBoundingClientRect();
     const others = [...grid.querySelectorAll(".card")].filter(c => c !== card), before = others.map(c => c.getBoundingClientRect());
-    let f = null;
+    let fly = false;
     if (target && tr.top < innerHeight * 1.3 && tr.bottom > 0) {
-      f = flyer(img.currentSrc || img.src, from); f.firstChild.style.filter = "grayscale(1) contrast(.9) brightness(.8)";
+      fly = true;
       target.style.visibility = "hidden";
     } else {
       // "Recently sold" is off screen: the card shrinks off the rack first
@@ -468,13 +468,17 @@
         { duration: 380, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" }).finished.catch(() => {});
       before.splice(0, before.length, ...others.map(c => c.getBoundingClientRect()));
     }
+    const f = fly ? flight([img], from, from, from, 1, 1, 1, t => t) : null;   // parked on the card's spot for the swap
+    if (f) { f.el.querySelectorAll("img").forEach(im => im.style.filter = "grayscale(1) contrast(.9) brightness(.8)"); f.el.getAnimations({ subtree: true }).forEach(a => a.pause()); }
     card.remove();
     others.forEach((c, k) => { const a = before[k], b = c.getBoundingClientRect(); if (a.left !== b.left || a.top !== b.top) c.animate([{ transform: `translate(${a.left - b.left}px,${a.top - b.top}px)` }, { transform: "none" }], { duration: 520, easing: "cubic-bezier(.2,.8,.2,1)" }); });
     if (f) {
       const t = target.querySelector("img").getBoundingClientRect();
-      await capped(f.animate([{ transform: "none" }, { transform: `translate(${t.left - from.left}px,${t.top - from.top}px) scale(${t.width / from.width},${t.height / from.height})` }],
-        { duration: 700, easing: "cubic-bezier(.6,0,.25,1)" }), 1300);
-      f.remove(); target.style.visibility = "";
+      f.el.remove();
+      const f2 = flight([img], from, t, from, 1, 1, 700, bez(.6, 0, .25, 1));
+      f2.el.querySelectorAll("img").forEach(im => im.style.filter = "grayscale(1) contrast(.9) brightness(.8)");
+      await f2.done;
+      f2.el.remove(); target.style.visibility = "";
       target.querySelector("span")?.animate([{ transform: "translate(-50%,-50%) rotate(-10deg) scale(1.6)", opacity: 0 }, { transform: "translate(-50%,-50%) rotate(-10deg) scale(1)", opacity: 1 }], { duration: 260, easing: "cubic-bezier(.5,0,.3,1)" });
     }
     $("#empty").hidden = grid.querySelectorAll(".card").length > 0;
@@ -619,27 +623,57 @@
   let flyFrom = null;
   // never let a flight hold the page hostage (background tabs, slow phones): finish it after a cap
   const capped = (anim, ms) => { const t = setTimeout(() => { try { anim.finish(); } catch (e) {} }, ms); return anim.finished.catch(() => {}).finally(() => clearTimeout(t)); };
-  function flyer(src, r) {
+  // cubic-bezier as a JS function, so the flight can be baked into keyframes
+  const bez = (x1, y1, x2, y2) => t => {
+    let lo = 0, hi = 1, s = t;
+    for (let k = 0; k < 18; k++) { s = (lo + hi) / 2; const x = 3 * (1 - s) * (1 - s) * s * x1 + 3 * (1 - s) * s * s * x2 + s * s * s; if (x < t) lo = s; else hi = s; }
+    return 3 * (1 - s) * (1 - s) * s * y1 + 3 * (1 - s) * s * s * y2 + s * s * s;
+  };
+  const EASE_OUT = bez(.2, .8, .2, 1), EASE_BACK = bez(.4, 0, .2, 1);
+  // The box (overflow hidden) morphs from one shape to the other while each photo inside is counter-scaled
+  // every step, so it always looks object-fit: cover and never stretches. Only transforms/opacity animate.
+  // imgs: source <img>s (2nd = hover photo to fade out), base: the bigger rect the flyer is laid out at.
+  function flight(imgs, from, to, base, z0, z1, dur, ease) {
+    const W = base.width, H = base.height, N = 32;
     const f = document.createElement("div"); f.className = "flyer";
-    f.innerHTML = `<img src="${esc(src)}" alt="" referrerpolicy="no-referrer">`;
-    Object.assign(f.style, { left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px" });
-    document.body.appendChild(f); return f;
+    Object.assign(f.style, { left: base.left + "px", top: base.top + "px", width: W + "px", height: H + "px" });
+    const steps = [...Array(N + 1)].map((_, k) => {
+      const e = ease(k / N), L = (a, b) => a + (b - a) * e;
+      return { x: L(from.left, to.left), y: L(from.top, to.top), w: Math.max(1, L(from.width, to.width)), h: Math.max(1, L(from.height, to.height)), z: L(z0, z1) };
+    });
+    const anims = [f.animate(steps.map(s => ({ transform: `translate(${s.x - base.left}px,${s.y - base.top}px) scale(${s.w / W},${s.h / H})` })), { duration: dur, fill: "both" })];
+    imgs.filter(Boolean).forEach((src, n) => {
+      const nw = src.naturalWidth || W, nh = src.naturalHeight || H, s1 = Math.max(W / nw, H / nh);
+      const im = document.createElement("img");
+      im.src = src.currentSrc || src.src; im.alt = ""; im.referrerPolicy = "no-referrer";
+      Object.assign(im.style, { position: "absolute", width: nw * s1 + "px", height: nh * s1 + "px", left: (W - nw * s1) / 2 + "px", top: (H - nh * s1) / 2 + "px", objectFit: "fill", transformOrigin: "50% 50%", willChange: "transform" });
+      f.appendChild(im);
+      anims.push(im.animate(steps.map(s => { const c = Math.max(s.w / nw, s.h / nh) * s.z / s1; return { transform: `scale(${c * W / s.w},${c * H / s.h})` }; }), { duration: dur, fill: "both" }));
+      if (n) anims.push(im.animate([{ opacity: 1 }, { opacity: 0 }], { duration: dur * .35, easing: "ease-out", fill: "forwards" }));
+    });
+    document.body.appendChild(f);
+    return { el: f, done: Promise.all(anims.map(a => capped(a, dur + 500))) };
+  }
+  // the photo's on-screen box inside a card (508 cards inset the photo inside a paper border) and its hover zoom
+  function cardPhotoBox(ci) {
+    const img = ci.querySelector("img:not(.alt)"), b = ci.getBoundingClientRect(), r = img ? img.getBoundingClientRect() : b;
+    return r.width < b.width - 1 ? { rect: r, zoom: 1 } : { rect: b, zoom: r.width / b.width || 1 };
   }
   async function flyIn(card) {
-    const srcImg = card.querySelector(".card-img img"), target = $("#galTrack img"), mcard = $(".modal-card");
+    const ci = card.querySelector(".card-img"), srcImg = ci?.querySelector("img:not(.alt)"), target = $("#galTrack img"), mcard = $(".modal-card");
     if (!srcImg || !target) return;
-    const from = srcImg.getBoundingClientRect(), to = target.getBoundingClientRect();
+    const { rect: from, zoom } = cardPhotoBox(ci), to = target.getBoundingClientRect();
     if (!from.width || !to.width || from.bottom < 0 || from.top > innerHeight) return;
     flyFrom = card;
-    const f = flyer(srcImg.currentSrc || srcImg.src, to);
-    card.querySelector(".card-img").style.visibility = "hidden";
-    mcard.style.animation = "none"; mcard.style.visibility = "hidden";
-    await capped(f.animate([{ transform: `translate(${from.left - to.left}px,${from.top - to.top}px) scale(${from.width / to.width},${from.height / to.height})` }, { transform: "none" }],
-      { duration: 520, easing: "cubic-bezier(.2,.8,.2,1)" }), 1000);
-    mcard.style.visibility = "";
-    f.remove();
-    mcard.animate([{ clipPath: "inset(0 50% 0 0)" }, { clipPath: "inset(0 0 0 0)" }], { duration: 380, easing: "cubic-bezier(.2,.8,.2,1)" });
-    document.querySelectorAll(".m-info > *").forEach(el => { el.style.animation = "none"; void el.offsetWidth; el.style.animation = ""; });
+    const alt = ci.querySelector("img.alt"), altOn = alt && alt.complete && +getComputedStyle(alt).opacity > .5;
+    const f = flight([srcImg, altOn && alt], from, to, to, zoom, 1, 560, EASE_OUT);
+    ci.style.visibility = "hidden";
+    // the popup fades in underneath while the photo is still landing: no hard swap at the end
+    mcard.style.animation = "none";
+    capped(mcard.animate([{ opacity: 0, transform: "translateY(14px)" }, { opacity: 1, transform: "none" }], { duration: 340, delay: 200, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" }), 1000);
+    await f.done;
+    try { await Promise.race([target.decode(), new Promise(r => setTimeout(r, 300))]); } catch (e) {}   // never reveal a not-yet-painted photo
+    f.el.remove();
   }
   async function flyOut() {
     const card = flyFrom; flyFrom = null;
@@ -648,16 +682,21 @@
       .find(im => { const r = im.getBoundingClientRect(); return r.right > 0 && r.left < innerWidth && r.width; });
     const done = () => { ci.style.visibility = ""; };
     if (!photo || REDUCE) { done(); return false; }
-    const from = photo.getBoundingClientRect(), to = ci.getBoundingClientRect();
+    const from = photo.getBoundingClientRect(), { rect: to } = cardPhotoBox(ci);
     if (to.bottom < 0 || to.top > innerHeight) { done(); return false; }
-    const f = flyer(photo.currentSrc || photo.src, from);
+    const f = flight([photo], from, to, from, 1, 1, 440, EASE_BACK);
     $(".modal-card").style.visibility = "hidden";
     $(".modal-back").animate([{ opacity: 1 }, { opacity: 0 }], { duration: 360, fill: "forwards" });
-    await capped(f.animate([{ transform: "none" }, { transform: `translate(${to.left - from.left}px,${to.top - from.top}px) scale(${to.width / from.width},${to.height / from.height})` }],
-      { duration: 440, easing: "cubic-bezier(.4,0,.2,1)" }), 900);
-    f.remove(); done();
+    await f.done;
+    f.el.remove(); done();
     $(".modal-card").style.visibility = ""; $(".modal-back").getAnimations().forEach(a => a.cancel());
     return true;
+  }
+  // locking page scroll hides the scrollbar on desktop; pad for it so the page behind doesn't jump sideways
+  function lockScroll(on) {
+    const b = document.body, sb = innerWidth - document.documentElement.clientWidth;
+    b.style.overflow = on ? "hidden" : "";
+    b.style.paddingRight = on && sb > 0 ? sb + "px" : "";
   }
 
   function openItem(id, fromCard) {
@@ -683,7 +722,7 @@
     const m = $("#modal");
     m.hidden = false;
     m.querySelectorAll(".modal-back, .modal-card, .m-info > *").forEach(el => { el.style.animation = "none"; void el.offsetWidth; el.style.animation = ""; });
-    document.body.style.overflow = "hidden";
+    lockScroll(true);
     modalOpen = true;
     document.title = `${i.title} | dualcoded.supply`;
     if (fromCard && !REDUCE) flyIn(fromCard);
@@ -701,7 +740,7 @@
   async function closeModal() {
     if (!modalOpen) return;
     modalOpen = false;
-    document.body.style.overflow = "";
+    lockScroll(false);
     document.title = "dualcoded.supply";
     if (view === "store") { theme(st.side); await flyOut(); }   // the photo shrinks back into its card (when that card is on screen)
     $("#modal").hidden = true;
