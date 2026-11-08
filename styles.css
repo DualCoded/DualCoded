@@ -400,6 +400,13 @@ body[data-theme="508"] .m-specs dd { font-family: var(--type); }
 .btn:hover { background: var(--ink); color: var(--bg); }
 .btn.primary { background: var(--ink); color: var(--bg); }
 .btn.primary:hover { opacity: .88; }
+.btn .btn-sub { display: block; margin-top: 4px; font-size: 11px; font-weight: 500; letter-spacing: .02em; opacity: .7; }
+.m-offer { margin: -16px 0 22px; font-size: 13px; color: var(--mute); }
+.m-offer b { color: var(--ink); font-weight: 600; }
+.m-trust { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 6px 0 0; font-size: 13px; color: var(--mute); }
+.m-trust b { color: var(--ink); font-weight: 600; }
+.m-stars { color: #f5c518; letter-spacing: 1px; }
+body[data-theme="508"] .m-trust, body[data-theme="508"] .m-offer { font-family: var(--type); }
 .m-share { margin-top: 16px; font-size: 13px; color: var(--mute); text-decoration: underline; text-underline-offset: 3px; }
 .m-share:hover { color: var(--ink); }
 .m-soldnote { margin: 0 0 8px; color: var(--mute); }

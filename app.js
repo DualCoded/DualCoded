@@ -783,13 +783,19 @@
     $("#mSide").innerHTML = `${esc(i.brand || "")}${i.brand ? " · " : ""}from <b>${esc(s?.owner || "")}</b>'s side (${esc(i.side)})`;
     $("#mTitle").textContent = i.title || "";
     $("#mPrice").textContent = i.status === "sold" ? "Sold" : money(i.price);
+    $("#mOffer").hidden = i.status === "sold";
     const specs = [["Size", i.size], ["Condition", i.condition], ["Measurements", i.measurements], ["Status", i.status === "hold" ? "On hold" : ""]];
     $("#mSpecs").innerHTML = specs.filter(x => x[1]).map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");
     $("#mDesc").textContent = i.description || "";
     const acts = [];
     if (i.status === "sold") acts.push(`<p class="m-soldnote">This one sold. DM us, we might have something close.</p>`);
-    else if (i.depop_url) acts.push(`<a class="btn primary" href="${esc(i.depop_url)}" target="_blank" rel="noopener">Buy on Depop ↗</a>`);
+    else if (i.depop_url) acts.push(`<a class="btn primary" href="${esc(i.depop_url)}" target="_blank" rel="noopener">Buy on Depop<span class="btn-sub">Protected checkout · Depop buyer protection</span></a>`);
     acts.push(`<a class="btn${i.status !== "sold" && !i.depop_url ? " primary" : ""}" href="${DM_URL}" target="_blank" rel="noopener">${i.status === "sold" || i.depop_url ? "Ask about it on Instagram" : "DM us on Instagram to buy"}</a>`);
+    // proof where the decision happens: the shop's Depop record + this side's promise
+    if (i.status !== "sold" && STATS) {
+      const r = Number(STATS.rating);
+      acts.push(`<p class="m-trust"><span><span class="m-stars" aria-hidden="true">★★★★★</span> <b>${r.toFixed(1)}</b> · ${esc(STATS.reviews)} reviews</span><span><b>${esc(STATS.sold)}</b> sold</span>${C.PROMISE[i.side] ? `<span>✓ ${esc(C.PROMISE[i.side])}</span>` : ""}</p>`);
+    }
     $("#mActions").innerHTML = acts.join("");
     if (st.side === "all" || view === "map") theme(i.side);
     const m = $("#modal");
