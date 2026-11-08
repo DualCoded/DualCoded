@@ -226,10 +226,11 @@ body[data-theme="508"] .store-head { background-color: rgba(232,225,210,.94); ba
 .tk-src:hover { color: #fff; }
 #landing.leaving .ticker { opacity: 0 !important; transition: opacity .35s; animation: none; }
 .hero-cluster { position: absolute; right: 4vw; top: 50%; width: 340px; height: 400px; transform: translateY(-50%); pointer-events: none; }
-.hero-cluster img { position: absolute; width: 96px; }
+.hero-cluster .hc { position: absolute; display: block; width: 96px; will-change: transform, opacity; }   /* .hc takes the scroll drift */
+.hero-cluster img { display: block; width: 100%; }
 .hero.anim .hero-cluster img { animation: stamp .55s cubic-bezier(.2,.8,.25,1) both; }
-.hero-cluster span { position: absolute; text-align: center; font-family: var(--goth); font-weight: 700; font-size: 58px; line-height: 1; paint-order: stroke fill; text-shadow: 0 2px 0 rgba(0,0,0,.55); transform: rotate(var(--r, 0deg)); }
-.hero.anim .hero-cluster span { animation: stamp .55s cubic-bezier(.2,.8,.25,1) both; }
+/* scroll-linked title wrapper (the h1 inside keeps its own entrance/shine animations) */
+.ht { position: relative; z-index: 1; transform-origin: 0 100%; will-change: transform, opacity; }
 @keyframes stamp { from { opacity: 0; transform: scale(0) rotate(-40deg); } 65% { opacity: 1; transform: scale(1.15) rotate(var(--r, 0deg)); } to { opacity: 1; transform: rotate(var(--r, 0deg)); } }
 
 /* 508 hero: typewriter + tape */
@@ -257,9 +258,17 @@ body[data-theme="508"] .store-head { background-color: rgba(232,225,210,.94); ba
 .filter-right input:focus, .filter-right select:focus { border-color: var(--ink); }
 
 /* grid + cards */
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 44px 24px; padding: 36px 28px 70px; }
+.grid { position: relative; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 44px 24px; padding: 36px 28px 70px; }
 .card { position: relative; cursor: pointer; outline: none; opacity: 0; transform: translateY(36px); transition: opacity .8s var(--out), transform .8s var(--out); }
 .card.seen { opacity: 1; transform: none; }
+.card { perspective: 900px; }
+/* "just dropped" hang tag covering a brand-new piece until it flips over */
+.card-tag { position: absolute; z-index: 4; left: 0; top: 0; width: 100%; aspect-ratio: 4/5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  background: #e9dfc6 radial-gradient(circle at 50% 13%, #0a0a0a 0 7px, transparent 8px);
+  background-image: radial-gradient(circle at 50% 13%, #0a0a0a 0 7px, transparent 8px), repeating-linear-gradient(0deg, rgba(0,0,0,.035) 0 2px, transparent 2px 5px);
+  color: #1d1914; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); backface-visibility: hidden; pointer-events: none; }
+.card-tag b { font: 400 clamp(22px, 2.6vw, 34px)/1 var(--marker); transform: rotate(-6deg); }
+.card-tag span { font: 700 11px var(--sans); letter-spacing: .2em; text-transform: uppercase; }
 .card-img { position: relative; aspect-ratio: 4/5; overflow: hidden; background: var(--card); }
 .card-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 1s var(--out), opacity .45s; }
 .card-img img.alt { opacity: 0; }

@@ -24,7 +24,9 @@
       for (let c = 0; c < n; c++) {
         const x = 170 + (c - (n - 1) / 2) * sx - w / 2, y = 20 + r * sy;
         const color = DCFX.CEM_NAMES[(r * 3 + c * 2 + 1) % DCFX.CEM_NAMES.length];
-        out.push(`<img src="${DCFX.cemURI(color)}" alt="" style="left:${x}px;top:${y}px;z-index:${(k * 7) % 9};animation-delay:${.08 + (Math.abs(r - 2) + Math.abs(c - (n - 1) / 2)) * .09}s">`);
+        // wrapper takes the scroll drift (data-dx/dy = direction away from the diamond's center), the img keeps its stamp-in
+        out.push(`<i class="hc" data-dx="${(x + w / 2 - 170).toFixed(1)}" data-dy="${(y + w * .6 - 210).toFixed(1)}" style="left:${x}px;top:${y}px;z-index:${(k * 7) % 9}">` +
+          `<img src="${DCFX.cemURI(color)}" alt="" style="animation-delay:${.08 + (Math.abs(r - 2) + Math.abs(c - (n - 1) / 2)) * .09}s"></i>`);
         k++;
       }
     });
@@ -256,14 +258,14 @@
     if (side === "732") return `<div class="hero-732">
         ${clusterHTML()}
         <p class="hero-who"><b>${esc(SIDES["732"].owner)}</b> · ${esc(SIDES["732"].place)} · 732</p>
-        <h1 class="hero-title">Streetwear</h1>${check}${chipsHTML(side)}</div>`;
+        <div class="ht"><h1 class="hero-title">Streetwear</h1></div>${check}${chipsHTML(side)}</div>`;
     if (side === "508") return `<div class="hero-508">
         <span class="hero-tape">508</span>
         <p class="hero-who"><b>${esc(SIDES["508"].owner)}</b> · ${esc(SIDES["508"].place)} · 508</p>
-        <h1 class="hero-title">Vintage / Y2K</h1>${check}${chipsHTML(side)}</div>`;
+        <div class="ht"><h1 class="hero-title">Vintage / Y2K</h1></div>${check}${chipsHTML(side)}</div>`;
     return `<div class="hero-all">
         <p class="hero-who">Both racks · <b>${esc(SIDES["732"].owner)}</b> (732) and <b>${esc(SIDES["508"].owner)}</b> (508)</p>
-        <h1 class="hero-title">732 <span>×</span> 508</h1>${check}${chipsHTML(side)}</div>`;
+        <div class="ht"><h1 class="hero-title">732 <span>×</span> 508</h1></div>${check}${chipsHTML(side)}</div>`;
   }
   $("#hero").addEventListener("click", e => {
     const b = e.target.closest(".brand"); if (!b) return;
@@ -271,7 +273,7 @@
     $("#hero").querySelectorAll(".brand").forEach(c => {
       const on = c.dataset.brand === st.brand; c.classList.toggle("on", on); c.setAttribute("aria-pressed", on);
     });
-    renderGrid();
+    renderGrid(true);
     if (st.brand && innerWidth < 760) $(".filters").scrollIntoView({ behavior: REDUCE ? "auto" : "smooth", block: "start" });
   });
 
@@ -284,8 +286,33 @@
     const hero = $("#hero");
     hero.innerHTML = heroHTML(side);
     hero.classList.remove("anim"); void hero.offsetWidth; hero.classList.add("anim");
+    setupHeroScroll();
     buildFilters(); renderGrid(); renderSold();
   }
+
+  // ---- scroll-linked hero: the title sinks back slower than the page, the 732 crosses drift apart and fade ----
+  let heroFX = null, heroTick = false;
+  function setupHeroScroll() {
+    const hero = $("#hero");
+    heroFX = { hero, ht: hero.querySelector(".ht"),
+      hcs: [...hero.querySelectorAll(".hc")].map((el, i) => ({ el, i, dx: +el.dataset.dx || 0, dy: +el.dataset.dy || 0 })) };
+    heroScroll();
+  }
+  function heroScroll() {
+    heroTick = false;
+    if (!heroFX || REDUCE || view !== "store") return;
+    const { hero, ht, hcs } = heroFX;
+    const p = Math.min(1, Math.max(0, scrollY / Math.max(1, hero.offsetHeight * .9)));
+    const e = 1 - (1 - p) * (1 - p);
+    if (ht) { ht.style.transform = e ? `translate3d(0,${(e * 50).toFixed(1)}px,0) scale(${(1 - e * .12).toFixed(4)})` : ""; ht.style.opacity = e ? (1 - e * .35).toFixed(3) : ""; }
+    hcs.forEach(({ el, i, dx, dy }) => {
+      if (!e) { el.style.transform = ""; el.style.opacity = ""; return; }
+      const s = e * 1.6;
+      el.style.transform = `translate3d(${(dx * s).toFixed(1)}px,${(dy * s - e * 40).toFixed(1)}px,0) rotate(${(e * (i % 2 ? 24 : -24)).toFixed(1)}deg) scale(${(1 - e * .25).toFixed(3)})`;
+      el.style.opacity = Math.max(0, 1 - e * 1.1).toFixed(3);
+    });
+  }
+  addEventListener("scroll", () => { if (!heroTick && heroFX && view === "store") { heroTick = true; requestAnimationFrame(heroScroll); } }, { passive: true });
 
   function moveBar() {
     const on = document.querySelector("#switch button.on"), bar = $("#switchBar");
@@ -307,10 +334,10 @@
     const b = e.target.closest(".cat"); if (!b) return;
     st.cat = b.dataset.cat;
     document.querySelectorAll(".cat").forEach(c => c.classList.toggle("on", c === b));
-    renderGrid();
+    renderGrid(true);
   });
-  $("#size").addEventListener("change", e => { st.size = e.target.value; renderGrid(); });
-  $("#sort").addEventListener("change", e => { st.sort = e.target.value; renderGrid(); });
+  $("#size").addEventListener("change", e => { st.size = e.target.value; renderGrid(true); });
+  $("#sort").addEventListener("change", e => { st.sort = e.target.value; renderGrid(true); });
   let qt; $("#search").addEventListener("input", e => { clearTimeout(qt); qt = setTimeout(() => { st.q = e.target.value.trim().toLowerCase(); renderGrid(); }, 120); });
 
   function filtered() {
@@ -332,10 +359,40 @@
     let n = 0;
     entries.forEach(en => {
       if (!en.isIntersecting) return;
-      en.target.style.transitionDelay = (n++ * 70) + "ms";
+      const d = n++ * 70;
+      en.target.style.transitionDelay = d + "ms";
       en.target.classList.add("seen"); io.unobserve(en.target);
+      if (en.target.querySelector(".card-tag")) playDrop(en.target, d);
     });
   }, { rootMargin: "0px 0px -30px 0px" });
+
+  // ---- "just dropped": a new piece first shows as a hang tag that flips over to the photo, then a NEW stamp lands.
+  //      Plays once per piece per visitor (remembered in this browser), so returning buyers aren't shown it again.
+  const DROP_KEY = "dc_drop_seen_v1";
+  const dropSeen = (() => { try { return new Set(JSON.parse(localStorage.getItem(DROP_KEY) || "[]")); } catch (e) { return new Set(); } })();
+  const markDropSeen = id => { dropSeen.add(String(id)); try { localStorage.setItem(DROP_KEY, JSON.stringify([...dropSeen].slice(-200))); } catch (e) {} };
+  function playDrop(card, delay) {
+    const tag = card.querySelector(".card-tag"), img = card.querySelector(".card-img"), badge = img.querySelector(".badge");
+    if (!tag) return;
+    markDropSeen(card.dataset.id);
+    const tilt = img.style.getPropertyValue("--tilt").trim(), rot = tilt && tilt !== "0deg" ? `rotate(${tilt}) ` : "";
+    const ease = "cubic-bezier(.2,.7,.25,1)";
+    img.style.visibility = "hidden";
+    if (badge) badge.style.opacity = "0";
+    tag.animate([{ transform: `${rot}rotateY(0deg)` }, { transform: `${rot}rotateY(0deg) translateY(-4px)`, offset: .4 }, { transform: `${rot}rotateY(90deg)` }],
+      { duration: 520, delay: delay + 450, easing: "cubic-bezier(.5,0,.75,0)", fill: "forwards" }).finished.then(() => {
+        tag.remove();
+        img.style.visibility = "";
+        img.animate([{ transform: `${rot}rotateY(-90deg)` }, { transform: `${rot}rotateY(10deg)`, offset: .75 }, { transform: `${rot}rotateY(0deg)` }], { duration: 480, easing: ease });
+        if (badge) {
+          badge.style.opacity = "";
+          const b = getComputedStyle(badge).transform, base = b === "none" ? "" : b + " ";
+          badge.animate([{ opacity: 0, transform: `${base}scale(2.4)` }, { opacity: 1, transform: `${base}scale(.92)`, offset: .7 }, { opacity: 1, transform: `${base}scale(1)` }],
+            { duration: 380, delay: 420, easing: "cubic-bezier(.5,0,.3,1)", fill: "backwards" });
+        }
+        card.animate([{ translate: "0 0" }, { translate: "1px -1px" }, { translate: "-1px 1px" }, { translate: "0 0" }], { duration: 160, delay: 690 });
+      }).catch(() => { tag.remove(); img.style.visibility = ""; if (badge) badge.style.opacity = ""; });
+  }
 
   function cardHTML(i) {
     const vintage = st.side === "508";
@@ -344,9 +401,11 @@
     const mark = st.side === "all" ? (i.side === "732" ? `<span class="side-mark t732">732</span>` : `<span class="side-mark t508">508</span>`) : "";
     const alt = i.photos?.[1] ? `<img class="alt" src="${esc(i.photos[1])}" alt="" loading="lazy" referrerpolicy="no-referrer">` : "";
     const tape = vintage ? `<span class="tape">${money(i.price)}${i.size ? `<small>size ${esc(i.size)}</small>` : ""}</span>` : "";
+    const drop = !REDUCE && i.status !== "hold" && isNew(i) && !dropSeen.has(String(i.id))
+      ? `<div class="card-tag" aria-hidden="true" style="${tilt ? `transform:rotate(${tilt}deg)` : ""}"><b>just dropped</b><span>dualcoded · ${esc(i.side)}</span></div>` : "";
     return `<article class="card" data-id="${esc(i.id)}" tabindex="0">
       <div class="card-img" style="--tilt:${tilt}deg">${badge}${mark}
-        <img src="${esc(i.photos?.[0] || "")}" alt="${esc(i.title)}" loading="lazy" decoding="async" referrerpolicy="no-referrer">${alt}${tape}</div>
+        <img src="${esc(i.photos?.[0] || "")}" alt="${esc(i.title)}" loading="lazy" decoding="async" referrerpolicy="no-referrer">${alt}${tape}</div>${drop}
       <div class="card-info">
         <p class="card-brand">${esc(i.brand)}</p>
         <h3 class="card-title">${esc(i.title)}</h3>
@@ -354,7 +413,8 @@
       </div></article>`;
   }
 
-  function renderGrid() {
+  const parked = new Map();   // cards filtered out by the morph, kept for reuse (cleared when the grid is rebuilt)
+  function renderGrid(morph) {
     const list = filtered(), grid = $("#grid"), empty = $("#empty");
     empty.hidden = list.length > 0;
     // nothing to show: a brand you're out of turns into an invitation to DM instead of a dead end
@@ -362,8 +422,44 @@
     empty.innerHTML = st.brand && !list.length
       ? `No ${esc(what)} right now. <a href="${DM_URL}" target="_blank" rel="noopener">DM us what you're looking for →</a> We find pieces all the time.`
       : `Nothing here right now. New pieces go up all the time, <a href="${DM_URL}" target="_blank" rel="noopener">DM us what you're looking for →</a>`;
-    grid.innerHTML = list.map(cardHTML).join("");
-    grid.querySelectorAll(".card").forEach(c => REDUCE ? c.classList.add("seen") : io.observe(c));
+    if (!morph || REDUCE || !grid.children.length) {
+      parked.clear();
+      grid.innerHTML = list.map(cardHTML).join("");
+      grid.querySelectorAll(".card").forEach(c => REDUCE ? c.classList.add("seen") : io.observe(c));
+      return;
+    }
+    // ---- morph (filters): cards that stay glide to their new spot, leavers shrink away, arrivals pop in ----
+    const gb = grid.getBoundingClientRect();
+    const old = new Map([...grid.querySelectorAll(".card")].filter(c => !c.classList.contains("leaving"))
+      .map(c => [c.dataset.id, { el: c, r: c.getBoundingClientRect() }]));
+    const keep = new Set(list.map(i => String(i.id)));
+    old.forEach(({ el, r }, id) => {
+      if (keep.has(id)) return;
+      el.classList.add("leaving");
+      Object.assign(el.style, { position: "absolute", left: (r.left - gb.left) + "px", top: (r.top - gb.top) + "px", width: r.width + "px", margin: "0", zIndex: "0", pointerEvents: "none" });
+      const park = () => {   // keep the node (photos already decoded) so it can come back without a hitch
+        el.getAnimations().forEach(a => a.cancel()); el.remove();
+        el.classList.remove("leaving"); el.removeAttribute("style"); el.classList.add("seen");
+        parked.set(id, el);
+      };
+      el.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(.82)" }], { duration: 260, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" })
+        .finished.then(park, park);
+    });
+    const tmp = document.createElement("div"), arrivals = [];
+    list.forEach(i => {
+      const id = String(i.id);
+      let el = old.get(id)?.el;
+      if (!el && parked.has(id)) { el = parked.get(id); parked.delete(id); arrivals.push(el); }
+      if (!el) { tmp.innerHTML = cardHTML(i); el = tmp.firstElementChild; el.classList.add("seen"); el.querySelector(".card-tag")?.remove(); arrivals.push(el); }
+      grid.appendChild(el);
+    });
+    old.forEach(({ el, r }, id) => {
+      if (!keep.has(id)) return;
+      const n = el.getBoundingClientRect(), dx = r.left - n.left, dy = r.top - n.top;
+      if (dx || dy) el.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: "none" }], { duration: 560, easing: "cubic-bezier(.2,.8,.2,1)" });
+    });
+    arrivals.forEach((el, n) => el.animate([{ opacity: 0, transform: "scale(.86) translateY(14px)" }, { opacity: 1, transform: "none" }],
+      { duration: 480, delay: 140 + n * 55, easing: "cubic-bezier(.16,1,.3,1)", fill: "backwards" }));
   }
   $("#grid").addEventListener("click", e => { const c = e.target.closest(".card"); if (c) openItemNav(c.dataset.id); });
   $("#grid").addEventListener("keydown", e => { const c = e.target.closest(".card"); if (c && e.key === "Enter") openItemNav(c.dataset.id); });
