@@ -102,6 +102,9 @@
         inner.append("circle").attr("class", "hit").attr("r", 46);
         inner.each(function (d) {
           const el = d3.select(this);
+          // live radar pings behind the pin (three staggered rings, CSS-animated)
+          const rings = el.append("g").attr("class", "rings").attr("aria-hidden", "true");
+          ["", " d2", " d3"].forEach(k => rings.append("circle").attr("class", `ring r${d}${k}`).attr("r", 8));
           if (d === "732") {
             el.append("image").attr("class", "pin").attr("href", DCFX.cemURI("white")).attr("x", -14).attr("y", -14).attr("width", 28).attr("height", 37);
           }
@@ -154,7 +157,7 @@
     async function zoomIn(side) {
       hover(null);
       const [x, y] = proj([SIDES[side].lon, SIDES[side].lat]);
-      [gMarkers.selectAll(".lbl"), gCities, gRoute, gNames].forEach(s => s.transition().duration(280).style("opacity", 0));
+      [gMarkers.selectAll(".lbl"), gMarkers.selectAll(".rings"), gCities, gRoute, gNames].forEach(s => s.transition().duration(280).style("opacity", 0));
       gStates.selectAll("path").classed("hot-508", d => side === "508" && d.id === "25").classed("hot-732", d => side === "732" && d.id === "34");
       if (REDUCE) return;
       await world.transition().duration(1000).ease(d3.easeCubicInOut)
@@ -169,7 +172,7 @@
         world.interrupt().attr("transform", `translate(${W / 2},${H / 2}) scale(7) translate(${-x},${-y})`);
         await world.transition().duration(1000).ease(d3.easeCubicInOut).attr("transform", "translate(0,0) scale(1)").end().catch(() => {});
       } else world.interrupt().attr("transform", "translate(0,0) scale(1)");
-      [gMarkers.selectAll(".lbl"), gCities, gRoute, gNames].forEach(s => s.transition().duration(400).style("opacity", 1));
+      [gMarkers.selectAll(".lbl"), gMarkers.selectAll(".rings"), gCities, gRoute, gNames].forEach(s => s.transition().duration(400).style("opacity", 1));
     }
 
     layout();
@@ -287,7 +290,7 @@
     hero.innerHTML = heroHTML(side);
     hero.classList.remove("anim"); void hero.offsetWidth; hero.classList.add("anim");
     setupHeroScroll();
-    buildFilters(); renderGrid(); renderSold();
+    buildFilters(); renderGrid(); renderSold(); playJustSold();
   }
 
   // ---- scroll-linked hero: the title sinks back slower than the page, the 732 crosses drift apart and fade ----
@@ -405,12 +408,76 @@
       ? `<div class="card-tag" aria-hidden="true" style="${tilt ? `transform:rotate(${tilt}deg)` : ""}"><b>just dropped</b><span>dualcoded · ${esc(i.side)}</span></div>` : "";
     return `<article class="card" data-id="${esc(i.id)}" tabindex="0">
       <div class="card-img" style="--tilt:${tilt}deg">${badge}${mark}
-        <img src="${esc(i.photos?.[0] || "")}" alt="${esc(i.title)}" loading="lazy" decoding="async" referrerpolicy="no-referrer">${alt}${tape}</div>${drop}
+        <img src="${esc(i.photos?.[0] || "")}" alt="${esc(i.title)}" loading="lazy" decoding="async" referrerpolicy="no-referrer">${alt}${tape}<span class="shine" aria-hidden="true"></span><span class="sold-stamp" aria-hidden="true">SOLD</span></div>${drop}
       <div class="card-info">
         <p class="card-brand">${esc(i.brand)}</p>
         <h3 class="card-title">${esc(i.title)}</h3>
         ${vintage ? "" : `<div class="card-meta"><span>${esc(i.size)}</span><b>${money(i.price)}</b></div>`}
       </div></article>`;
+  }
+
+  // ---- SOLD stamp: pieces that were for sale on this visitor's last visit and have sold since get a red SOLD stamp,
+  //      then move into "Recently sold". Each sale plays once per browser. ----
+  const SEEN_AVAIL_KEY = "dc_seen_avail_v1";
+  let JUST_SOLD = [];
+  function computeJustSold() {
+    let prev = null;
+    try { prev = JSON.parse(localStorage.getItem(SEEN_AVAIL_KEY) || "null"); } catch (e) {}
+    if (Array.isArray(prev)) { const p = new Set(prev); JUST_SOLD = ITEMS.filter(i => i.status === "sold" && p.has(String(i.id))); }
+    try { localStorage.setItem(SEEN_AVAIL_KEY, JSON.stringify(ITEMS.filter(i => i.status !== "sold").map(i => String(i.id)))); } catch (e) {}
+  }
+  const soldIO = new IntersectionObserver(es => es.forEach(en => {
+    if (!en.isIntersecting) return;
+    soldIO.unobserve(en.target);
+    setTimeout(() => stampSold(en.target), 350 + (+en.target.dataset.n || 0) * 700);
+  }), { threshold: .5 });
+  function playJustSold() {
+    if (REDUCE || !JUST_SOLD.length) return;
+    const mine = JUST_SOLD.filter(i => st.side === "all" || i.side === st.side).slice(0, 3);
+    if (!mine.length) return;
+    JUST_SOLD = JUST_SOLD.filter(i => !mine.includes(i));
+    const grid = $("#grid"), tmp = document.createElement("div");
+    mine.slice().reverse().forEach((i, n) => {
+      tmp.innerHTML = cardHTML(i);
+      const c = tmp.firstElementChild;
+      c.querySelector(".card-tag")?.remove(); c.querySelector(".badge")?.remove();
+      c.classList.add("seen", "just-sold"); c.dataset.n = mine.length - 1 - n;
+      grid.prepend(c); soldIO.observe(c);
+    });
+  }
+  async function stampSold(card) {
+    if (!card.isConnected) return;
+    const ci = card.querySelector(".card-img"), stamp = card.querySelector(".sold-stamp"), img = ci.querySelector("img");
+    stamp.animate([{ opacity: 0, transform: "translate(-50%,-50%) rotate(-12deg) scale(2.6)" }, { opacity: 1, transform: "translate(-50%,-50%) rotate(-12deg) scale(.9)", offset: .72 },
+      { opacity: 1, transform: "translate(-50%,-50%) rotate(-12deg) scale(1)" }], { duration: 360, easing: "cubic-bezier(.55,0,.3,1)", fill: "forwards" });
+    card.animate([{ translate: "0 0" }, { translate: "2px -2px" }, { translate: "-2px 1px" }, { translate: "0 0" }], { duration: 180, delay: 250 });
+    img.animate([{ filter: "none" }, { filter: "grayscale(1) contrast(.9) brightness(.8)" }], { duration: 700, delay: 300, fill: "forwards" });
+    await new Promise(r => setTimeout(r, 1500));
+    if (!card.isConnected) return;
+    // into "Recently sold" if it's close by, otherwise it just leaves the rack; the grid closes the gap either way
+    const grid = $("#grid"), from = ci.getBoundingClientRect();
+    const target = $(`#soldRow .sold-item[data-id="${CSS.escape(card.dataset.id)}"]`), tr = target?.getBoundingClientRect();
+    const others = [...grid.querySelectorAll(".card")].filter(c => c !== card), before = others.map(c => c.getBoundingClientRect());
+    let f = null;
+    if (target && tr.top < innerHeight * 1.3 && tr.bottom > 0) {
+      f = flyer(img.currentSrc || img.src, from); f.firstChild.style.filter = "grayscale(1) contrast(.9) brightness(.8)";
+      target.style.visibility = "hidden";
+    } else {
+      // "Recently sold" is off screen: the card shrinks off the rack first
+      await card.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(.8) translateY(10px)" }],
+        { duration: 380, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" }).finished.catch(() => {});
+      before.splice(0, before.length, ...others.map(c => c.getBoundingClientRect()));
+    }
+    card.remove();
+    others.forEach((c, k) => { const a = before[k], b = c.getBoundingClientRect(); if (a.left !== b.left || a.top !== b.top) c.animate([{ transform: `translate(${a.left - b.left}px,${a.top - b.top}px)` }, { transform: "none" }], { duration: 520, easing: "cubic-bezier(.2,.8,.2,1)" }); });
+    if (f) {
+      const t = target.querySelector("img").getBoundingClientRect();
+      await capped(f.animate([{ transform: "none" }, { transform: `translate(${t.left - from.left}px,${t.top - from.top}px) scale(${t.width / from.width},${t.height / from.height})` }],
+        { duration: 700, easing: "cubic-bezier(.6,0,.25,1)" }), 1300);
+      f.remove(); target.style.visibility = "";
+      target.querySelector("span")?.animate([{ transform: "translate(-50%,-50%) rotate(-10deg) scale(1.6)", opacity: 0 }, { transform: "translate(-50%,-50%) rotate(-10deg) scale(1)", opacity: 1 }], { duration: 260, easing: "cubic-bezier(.5,0,.3,1)" });
+    }
+    $("#empty").hidden = grid.querySelectorAll(".card").length > 0;
   }
 
   const parked = new Map();   // cards filtered out by the morph, kept for reuse (cleared when the grid is rebuilt)
@@ -429,6 +496,7 @@
       return;
     }
     // ---- morph (filters): cards that stay glide to their new spot, leavers shrink away, arrivals pop in ----
+    grid.querySelectorAll(".card.just-sold").forEach(c => { soldIO.unobserve(c); c.remove(); });   // temporary sold cards don't take part
     const gb = grid.getBoundingClientRect();
     const old = new Map([...grid.querySelectorAll(".card")].filter(c => !c.classList.contains("leaving"))
       .map(c => [c.dataset.id, { el: c, r: c.getBoundingClientRect() }]));
@@ -461,7 +529,35 @@
     arrivals.forEach((el, n) => el.animate([{ opacity: 0, transform: "scale(.86) translateY(14px)" }, { opacity: 1, transform: "none" }],
       { duration: 480, delay: 140 + n * 55, easing: "cubic-bezier(.16,1,.3,1)", fill: "backwards" }));
   }
-  $("#grid").addEventListener("click", e => { const c = e.target.closest(".card"); if (c) openItemNav(c.dataset.id); });
+  $("#grid").addEventListener("click", e => { const c = e.target.closest(".card"); if (c && !c.classList.contains("just-sold")) openItemNav(c.dataset.id, c); });
+
+  // ---- tilt & shine (desktop mouse only; Bao's paper-print cards keep their own lift) ----
+  const FINE = matchMedia("(pointer: fine)").matches;
+  let tiltCard = null, tiltRaf = 0;
+  function untilt() {
+    if (!tiltCard) return;
+    const im = tiltCard.querySelector(".card-img");
+    im.classList.remove("tilting"); im.style.transform = ""; im.style.boxShadow = "";
+    tiltCard = null;
+  }
+  if (FINE && !REDUCE) {
+    $("#grid").addEventListener("pointermove", e => {
+      const card = e.target.closest(".card");
+      if (card !== tiltCard) untilt();
+      if (!card || st.side === "508" || document.body.dataset.theme === "508" || card.classList.contains("leaving")) return;
+      tiltCard = card;
+      const im = card.querySelector(".card-img"), r = im.getBoundingClientRect();
+      const x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+      cancelAnimationFrame(tiltRaf);
+      tiltRaf = requestAnimationFrame(() => {
+        im.classList.add("tilting");
+        im.style.transform = `perspective(800px) rotateX(${((.5 - y) * 10).toFixed(2)}deg) rotateY(${((x - .5) * 12).toFixed(2)}deg) scale(1.02)`;
+        im.style.boxShadow = `${((.5 - x) * 18).toFixed(1)}px ${(18 + (.5 - y) * 10).toFixed(1)}px 40px -18px rgba(0,0,0,.9)`;
+        im.style.setProperty("--sx", (x * 100).toFixed(1) + "%"); im.style.setProperty("--sy", (y * 100).toFixed(1) + "%");
+      });
+    });
+    $("#grid").addEventListener("pointerleave", () => { cancelAnimationFrame(tiltRaf); untilt(); });
+  }
   $("#grid").addEventListener("keydown", e => { const c = e.target.closest(".card"); if (c && e.key === "Enter") openItemNav(c.dataset.id); });
 
   const SOLD_MAX = 40;
@@ -514,12 +610,57 @@
   DC.stats().then(s => { if (s) { renderStats(s); if (view === "store") renderSold(); } }).catch(() => {});
 
   // ======================= ITEM =======================
-  function openItemNav(id) {
+  function openItemNav(id, fromCard) {
     history.pushState(null, "", "#/item/" + encodeURIComponent(id));
-    modalPushed = true; openItem(id);
+    modalPushed = true; openItem(id, fromCard);
   }
 
-  function openItem(id) {
+  // ---- the tapped card's photo flies into the popup (and back out on close) ----
+  let flyFrom = null;
+  // never let a flight hold the page hostage (background tabs, slow phones): finish it after a cap
+  const capped = (anim, ms) => { const t = setTimeout(() => { try { anim.finish(); } catch (e) {} }, ms); return anim.finished.catch(() => {}).finally(() => clearTimeout(t)); };
+  function flyer(src, r) {
+    const f = document.createElement("div"); f.className = "flyer";
+    f.innerHTML = `<img src="${esc(src)}" alt="" referrerpolicy="no-referrer">`;
+    Object.assign(f.style, { left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px" });
+    document.body.appendChild(f); return f;
+  }
+  async function flyIn(card) {
+    const srcImg = card.querySelector(".card-img img"), target = $("#galTrack img"), mcard = $(".modal-card");
+    if (!srcImg || !target) return;
+    const from = srcImg.getBoundingClientRect(), to = target.getBoundingClientRect();
+    if (!from.width || !to.width || from.bottom < 0 || from.top > innerHeight) return;
+    flyFrom = card;
+    const f = flyer(srcImg.currentSrc || srcImg.src, to);
+    card.querySelector(".card-img").style.visibility = "hidden";
+    mcard.style.animation = "none"; mcard.style.visibility = "hidden";
+    await capped(f.animate([{ transform: `translate(${from.left - to.left}px,${from.top - to.top}px) scale(${from.width / to.width},${from.height / to.height})` }, { transform: "none" }],
+      { duration: 520, easing: "cubic-bezier(.2,.8,.2,1)" }), 1000);
+    mcard.style.visibility = "";
+    f.remove();
+    mcard.animate([{ clipPath: "inset(0 50% 0 0)" }, { clipPath: "inset(0 0 0 0)" }], { duration: 380, easing: "cubic-bezier(.2,.8,.2,1)" });
+    document.querySelectorAll(".m-info > *").forEach(el => { el.style.animation = "none"; void el.offsetWidth; el.style.animation = ""; });
+  }
+  async function flyOut() {
+    const card = flyFrom; flyFrom = null;
+    if (!card || !card.isConnected) return false;
+    const ci = card.querySelector(".card-img"), photo = [...$("#galTrack").querySelectorAll("img")]
+      .find(im => { const r = im.getBoundingClientRect(); return r.right > 0 && r.left < innerWidth && r.width; });
+    const done = () => { ci.style.visibility = ""; };
+    if (!photo || REDUCE) { done(); return false; }
+    const from = photo.getBoundingClientRect(), to = ci.getBoundingClientRect();
+    if (to.bottom < 0 || to.top > innerHeight) { done(); return false; }
+    const f = flyer(photo.currentSrc || photo.src, from);
+    $(".modal-card").style.visibility = "hidden";
+    $(".modal-back").animate([{ opacity: 1 }, { opacity: 0 }], { duration: 360, fill: "forwards" });
+    await capped(f.animate([{ transform: "none" }, { transform: `translate(${to.left - from.left}px,${to.top - from.top}px) scale(${to.width / from.width},${to.height / from.height})` }],
+      { duration: 440, easing: "cubic-bezier(.4,0,.2,1)" }), 900);
+    f.remove(); done();
+    $(".modal-card").style.visibility = ""; $(".modal-back").getAnimations().forEach(a => a.cancel());
+    return true;
+  }
+
+  function openItem(id, fromCard) {
     const i = ITEMS.find(x => String(x.id) === String(id));
     if (!i) { closeModal(); return; }
     const s = SIDES[i.side];
@@ -545,6 +686,7 @@
     document.body.style.overflow = "hidden";
     modalOpen = true;
     document.title = `${i.title} | dualcoded.supply`;
+    if (fromCard && !REDUCE) flyIn(fromCard);
   }
 
   $("#galThumbs").addEventListener("click", e => {
@@ -556,13 +698,14 @@
     document.querySelectorAll("#galThumbs button").forEach((b, k) => b.classList.toggle("on", k === n));
   }, { passive: true });
 
-  function closeModal() {
+  async function closeModal() {
     if (!modalOpen) return;
     modalOpen = false;
-    $("#modal").hidden = true;
     document.body.style.overflow = "";
     document.title = "dualcoded.supply";
-    if (view === "store") theme(st.side);
+    if (view === "store") { theme(st.side); await flyOut(); }   // the photo shrinks back into its card (when that card is on screen)
+    $("#modal").hidden = true;
+    $(".modal-card").style.animation = "";
   }
   function closeModalNav() {
     if (modalPushed) { modalPushed = false; history.back(); }
@@ -590,7 +733,7 @@
 
   // ======================= BOOT =======================
   map = buildMap();
-  DC.list().then(items => { ITEMS = items || []; }).catch(err => { console.error("Inventory failed to load", err); ITEMS = []; })
+  DC.list().then(items => { ITEMS = items || []; computeJustSold(); }).catch(err => { console.error("Inventory failed to load", err); ITEMS = []; })
     .then(() => {
       const [a, b] = location.hash.replace(/^#\/?/, "").split("/");
       if (a === "item" && b) { const it = ITEMS.find(x => String(x.id) === decodeURIComponent(b)); showStore(it?.side || "all"); openItem(decodeURIComponent(b)); }

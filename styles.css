@@ -76,6 +76,11 @@ img { display: block; }
 .marker .pin { transition: transform .5s var(--out); transform-box: fill-box; transform-origin: center; }
 .marker:hover .pin, .marker:focus-visible .pin { transform: rotate(-12deg) scale(1.15); }
 .marker-in { opacity: 0; animation: up 1s var(--out) forwards; }
+/* live radar pings from each shop */
+.marker .ring { fill: none; stroke-width: 1.6; transform-box: fill-box; transform-origin: center; opacity: 0; animation: ping 2.6s cubic-bezier(.2,.6,.3,1) 1.2s infinite; pointer-events: none; }
+.marker .ring.r732 { stroke: #ececea; } .marker .ring.r508 { stroke: #c8742a; }
+.marker .ring.d2 { animation-delay: 2.07s; } .marker .ring.d3 { animation-delay: 2.94s; }
+@keyframes ping { 0% { transform: scale(.3); opacity: .9; } 100% { transform: scale(4.2); opacity: 0; } }
 
 .preview { position: absolute; z-index: 4; pointer-events: none; display: flex; gap: 4px; opacity: 0; transform: translateY(6px); transition: opacity .25s, transform .4s var(--out); }
 .preview.show { opacity: 1; transform: none; }
@@ -262,6 +267,21 @@ body[data-theme="508"] .store-head { background-color: rgba(232,225,210,.94); ba
 .card { position: relative; cursor: pointer; outline: none; opacity: 0; transform: translateY(36px); transition: opacity .8s var(--out), transform .8s var(--out); }
 .card.seen { opacity: 1; transform: none; }
 .card { perspective: 900px; }
+/* tilt & shine (desktop): the photo leans toward the cursor, a soft light follows it */
+.card-img { transition: transform .5s var(--out), box-shadow .5s var(--out); }
+.card-img.tilting { transition: transform .08s linear, box-shadow .2s; will-change: transform; }
+.shine { position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; transition: opacity .4s; mix-blend-mode: soft-light;
+  background: radial-gradient(circle at var(--sx, 50%) var(--sy, 50%), rgba(255,255,255,.75), rgba(255,255,255,.15) 30%, transparent 60%); }
+.card-img.tilting .shine { opacity: 1; }
+body[data-theme="508"] .shine { display: none; }
+/* SOLD stamp (pieces that sold since your last visit) */
+.sold-stamp { position: absolute; z-index: 5; left: 50%; top: 42%; padding: 6px 16px 4px; border: 4px solid #e3262b; color: #e3262b; font: 900 34px/1 var(--sans); font-stretch: 80%;
+  letter-spacing: .08em; background: rgba(255,255,255,.12); transform: translate(-50%,-50%) rotate(-12deg); opacity: 0; pointer-events: none;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='60'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 -2.2 1.6'/%3E%3C/filter%3E%3Crect width='120' height='60' filter='url(%23n)'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='60'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 -2.2 1.6'/%3E%3C/filter%3E%3Crect width='120' height='60' filter='url(%23n)'/%3E%3C/svg%3E"); }
+/* photo flying between the grid and the item popup */
+.flyer { position: fixed; z-index: 70; overflow: hidden; pointer-events: none; will-change: transform; transform-origin: 0 0; background: var(--card); }
+.flyer img { width: 100%; height: 100%; object-fit: cover; display: block; }
 /* "just dropped" hang tag covering a brand-new piece until it flips over */
 .card-tag { position: absolute; z-index: 4; left: 0; top: 0; width: 100%; aspect-ratio: 4/5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   background: #e9dfc6 radial-gradient(circle at 50% 13%, #0a0a0a 0 7px, transparent 8px);
