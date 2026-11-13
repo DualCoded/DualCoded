@@ -504,7 +504,7 @@
     } else {
       // "Recently sold" is off screen: the card shrinks off the rack first
       await card.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(.8) translateY(10px)" }],
-        { duration: 380, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" }).finished.catch(() => {});
+        { duration: 260, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "forwards" }).finished.catch(() => {});
       before.splice(0, before.length, ...others.map(c => c.getBoundingClientRect()));
     }
     const f = fly ? flight([img], from, from, from, 1, 1, 1, t => t) : null;   // parked on the card's spot for the swap
@@ -554,7 +554,7 @@
         el.classList.remove("leaving"); el.removeAttribute("style"); el.classList.add("seen");
         parked.set(id, el);
       };
-      el.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(.82)" }], { duration: 260, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" })
+      el.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(.9)" }], { duration: 200, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "forwards" })
         .finished.then(park, park);
     });
     const tmp = document.createElement("div"), arrivals = [];
@@ -729,6 +729,7 @@
     const f = flight([srcImg, altOn && alt], from, to, to, zoom, 1, 560, EASE_OUT, rot);
     target.decode().catch(() => {});   // the gallery photo decodes alongside the flight
     await f.ready;
+    if (!modalOpen) { f.el.remove(); mcard.style.opacity = ""; return; }   // closed (e.g. Escape) before the photo was ready
     untilt();
     ci.style.transition = "none"; ci.style.transform = "none"; ci.style.visibility = "hidden";   // flat again for the trip back
     target.style.visibility = "hidden";   // one photo on screen at a time: the popup's own copy waits for the flyer to land
@@ -816,22 +817,30 @@
     document.querySelectorAll("#galThumbs button").forEach((b, k) => b.classList.toggle("on", k === n));
   }, { passive: true });
 
+  let closeInstant = false;   // keyboard closes skip the fly-back: keyboard actions never animate
   async function closeModal() {
     if (!modalOpen) return;
     modalOpen = false;
+    const instant = closeInstant || REDUCE; closeInstant = false;
     lockScroll(false);
     document.title = "dualcoded.supply";
     theme(view === "store" ? st.side : "map");
-    await flyOut();   // the photo shrinks back into its card or polaroid (when it's on screen)
+    if (instant) {
+      document.querySelectorAll(".flyer").forEach(f => f.remove());
+      const c = flyFrom; flyFrom = null;
+      const ci = c && (c.querySelector(".card-img") || c);
+      if (ci) { ci.style.visibility = ""; ci.style.transition = ""; ci.style.transform = ""; }
+    } else await flyOut();   // the photo shrinks back into its card or polaroid (when it's on screen)
     $("#modal").hidden = true;
     $(".modal-card").style.animation = "";
   }
-  function closeModalNav() {
+  function closeModalNav(instant) {
+    closeInstant = !!instant;
     if (modalPushed) { modalPushed = false; history.back(); }
     else { history.replaceState(null, "", "#/" + st.side); closeModal(); }
   }
   $("#modal").addEventListener("click", e => { if (e.target.closest("[data-close]")) closeModalNav(); });
-  addEventListener("keydown", e => { if (e.key === "Escape" && modalOpen) closeModalNav(); });
+  addEventListener("keydown", e => { if (e.key === "Escape" && modalOpen) closeModalNav(true); });
   $("#mShare").addEventListener("click", async () => {
     try { await navigator.clipboard.writeText(location.href); $("#mShare").textContent = "Link copied"; }
     catch (e) { $("#mShare").textContent = location.href; }

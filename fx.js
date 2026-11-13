@@ -619,6 +619,19 @@
     root.remove();
   }
 
+  // each big transition plays once per visit; after that, switching is a quick dip so browsing stays fast
+  const SEEN_KEY = "dc_fx_seen_v1";
+  const seen = (() => { try { return new Set(JSON.parse(sessionStorage.getItem(SEEN_KEY) || "[]")); } catch (e) { return new Set(); } })();
+  const markSeen = k => { seen.add(k); try { sessionStorage.setItem(SEEN_KEY, JSON.stringify([...seen])); } catch (e) {} };
+  async function quick(swap) {
+    const root = layer("fx-quick");
+    const ease = "cubic-bezier(0.23, 1, 0.32, 1)";
+    await done(root.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 130, easing: ease, fill: "both" }));
+    swap();
+    await done(root.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: ease, fill: "both" }));
+    root.remove();
+  }
+
   let running = false;
   async function run(kind, swap, label) {
     if (REDUCE) { swap(); return; }
@@ -627,7 +640,10 @@
     // 732 picks one of its transitions at random each time
     const pool = [cluster, nightcity, bats, tour];
     const fx732 = pool[(Math.random() * pool.length) | 0];
-    try { await (kind === "732" ? fx732 : kind === "508" ? pile : wipe)(swap, label); }
+    const key = kind === "732" || kind === "508" ? kind : "wipe";
+    const full = !seen.has(key);
+    if (full) markSeen(key);
+    try { await (!full ? quick : kind === "732" ? fx732 : kind === "508" ? pile : wipe)(swap, label); }
     catch (e) { console.error(e); swap(); document.querySelectorAll(".fx").forEach(n => n.remove()); }
     finally { running = false; }
   }
