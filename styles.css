@@ -162,7 +162,8 @@ img { display: block; }
 .nc-red { position: absolute; inset: 0; z-index: 8; opacity: 0; background: #da1f26; will-change: transform;
   box-shadow: inset 0 -40px 40px -20px rgba(0,0,0,.35), 0 30px 60px rgba(0,0,0,.35); }
 .fb-box span { display: block; padding-right: .05em; color: #fff; font-family: var(--sans); font-weight: 900; font-style: italic; letter-spacing: -.035em; line-height: 1; }
-.fx-cem { position: absolute; display: block; will-change: transform; filter: drop-shadow(0 1px 0 rgba(0,0,0,.6)); }
+.fx-cem { position: absolute; display: block; will-change: transform; }
+.fx-cem img { position: absolute; inset: 0; width: 100%; height: 100%; filter: drop-shadow(0 1px 0 rgba(0,0,0,.6)); }
 .fx-banner { opacity: 0; transform: translate(-50%,-50%); position: absolute; z-index: 1000; left: 50%; top: 50%; width: min(88vw, 720px); filter: drop-shadow(0 8px 24px rgba(0,0,0,.85)); }
 .fx-banner svg { display: block; width: 100%; overflow: visible; }
 .fx-pile-floor { position: absolute; left: 0; right: 0; bottom: 0; height: 100%; background: #2a2119; }
@@ -171,7 +172,6 @@ img { display: block; }
 .fx-tag::before { content: ""; position: absolute; top: -12px; left: 50%; width: 70px; height: 24px; transform: translateX(-50%) rotate(3deg); background: rgba(238, 228, 190, .75); }
 .fx-tag span { font-family: var(--type); font-size: 15px; letter-spacing: .08em; text-transform: uppercase; }
 .fx-tag b { font-family: var(--marker); font-weight: 400; font-size: 64px; line-height: 1; }
-.fx-quick { background: #0a0a0a; }
 .fx-wipe { background: #0a0a0a; display: flex; align-items: center; justify-content: center; }
 .fx-wipe span { font-weight: 800; font-stretch: 68%; font-size: clamp(64px, 12vw, 180px); text-transform: uppercase; color: #ecebe7; }
 
@@ -284,6 +284,9 @@ body[data-theme="508"] .store-head { background-color: rgba(232,225,210,.94); ba
 .grid { position: relative; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 44px 24px; padding: 36px 28px 70px; }
 .card { position: relative; cursor: pointer; outline: none; opacity: 0; transform: translateY(36px); transition: opacity .8s var(--out), transform .8s var(--out); }
 .card.seen { opacity: 1; transform: none; }
+/* while a side transition covers the screen, the store's entrance waits (fx.js releases it as the cover lifts) */
+body.fx-hold .card.seen { opacity: 0; transform: translateY(36px); }
+body.fx-hold .hero.anim, body.fx-hold .hero.anim * { animation-play-state: paused !important; }
 .card { perspective: 900px; }
 /* tilt & shine (desktop): the photo leans toward the cursor, a soft light follows it */
 .card-img { transition: transform .5s var(--out), box-shadow .5s var(--out); }

@@ -85,14 +85,19 @@
         const x = cx + c * sx + (Math.abs(r) % 2) * sx / 2, y = cy + r * sy;
         if (x < -cw * .6 || x > W + cw * .6 || y < -ch * .4 || y > H + ch * .7) continue;
         const d = Math.abs(x - cx) / sx + Math.abs(y - cy) / sy;      // diamond distance, like the print
-        let color = CEM_NAMES[(Math.random() * CEM_NAMES.length) | 0];
-        const im = document.createElement("img");
-        im.className = "fx-cem";
-        im.alt = "";
-        im.style.cssText = `width:${cw}px;height:${ch}px;left:${x - cw / 2}px;top:${y - ch * CROSS_CY}px;z-index:${(Math.random() * 500) | 0}`;
-        paint(im, color);
-        items.push({ im, d, delay: d * 62, color, rot: rnd(-5, 5) });
-        frag.appendChild(im);
+        const color = CEM_NAMES[(Math.random() * CEM_NAMES.length) | 0];
+        // each cross is a pair: its color, plus the next color stacked on top for the wave (an opacity
+        // crossfade on the GPU, instead of swapping image sources mid-animation, which stutters)
+        const wrap = document.createElement("div");
+        wrap.className = "fx-cem";
+        wrap.style.cssText = `width:${cw}px;height:${ch}px;left:${x - cw / 2}px;top:${y - ch * CROSS_CY}px;z-index:${(Math.random() * 500) | 0}`;
+        const a = document.createElement("img"), b = document.createElement("img");
+        a.alt = b.alt = "";
+        paint(a, color); paint(b, CEM_NAMES[(CEM_NAMES.indexOf(color) + 1) % CEM_NAMES.length]);
+        b.style.opacity = 0;
+        wrap.append(a, b);
+        items.push({ im: wrap, next: b, d, delay: d * 62, rot: rnd(-5, 5) });
+        frag.appendChild(wrap);
       }
     }
     root.appendChild(frag);
@@ -101,36 +106,39 @@
     banner.innerHTML = bannerSVG("Dualcoded");
     root.appendChild(banner);
 
-    back.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 450, easing: "ease-out", fill: "both" });
-    // 1) numbers stamp in, growing out from the center as a diamond
+    const OUT = "cubic-bezier(0.23, 1, 0.32, 1)";
+    back.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 450, easing: OUT, fill: "both" });
+    // 1) crosses stamp down onto the wall, spreading from the center as a diamond: each drops in a
+    //    little large and settles, like a print hitting fabric (never grows out of nothing)
     const ins = items.map(it => it.im.animate([
-      { transform: `scale(0) rotate(${it.rot - 40}deg)`, opacity: 0 },
-      { transform: `scale(1.18) rotate(${it.rot + 4}deg)`, opacity: 1, offset: .65 },
+      { transform: `scale(1.6) rotate(${it.rot - 18}deg)`, opacity: 0 },
+      { transform: `scale(.94) rotate(${it.rot + 2}deg)`, opacity: 1, offset: .62 },
       { transform: `scale(1) rotate(${it.rot}deg)`, opacity: 1 }],
-      { duration: 460, delay: it.delay, easing: "cubic-bezier(.2,.8,.25,1)", fill: "both" }));
+      { duration: 440, delay: it.delay, easing: "cubic-bezier(.2,.8,.25,1)", fill: "both" }));
     await Promise.all(ins.map(done));
-    // 2) banner unfurls, color wave rolls through the wall
-    banner.animate([{ transform: "translate(-50%,-50%) scaleX(0)", opacity: 0 },
-                    { transform: "translate(-50%,-50%) scaleX(1.06)", opacity: 1, offset: .7 },
+    // 2) banner unfurls from its center, color wave rolls out through the wall (scheduled on the
+    //    animation clock, not timers, so the wave front stays even)
+    banner.animate([{ transform: "translate(-50%,-50%) scaleX(.25)", opacity: 0 },
+                    { transform: "translate(-50%,-50%) scaleX(1.04)", opacity: 1, offset: .7 },
                     { transform: "translate(-50%,-50%) scaleX(1)", opacity: 1 }],
-      { duration: 520, easing: "cubic-bezier(.2,.9,.25,1)", fill: "both" });
-    items.forEach(it => setTimeout(() => {
-      it.color = CEM_NAMES[(CEM_NAMES.indexOf(it.color) + 1) % CEM_NAMES.length];
-      paint(it.im, it.color);
-      it.im.animate([{ transform: `scale(1) rotate(${it.rot}deg)` }, { transform: `scale(1.1) rotate(${it.rot}deg)` }, { transform: `scale(1) rotate(${it.rot}deg)` }],
-        { duration: 260, easing: "ease-out" });
-    }, 120 + it.d * 32));
+      { duration: 500, easing: "cubic-bezier(.2,.9,.25,1)", fill: "both" });
+    items.forEach(it => {
+      const delay = 120 + it.d * 32;
+      it.next.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, delay, easing: OUT, fill: "both" });
+      it.im.animate([{ transform: `scale(1) rotate(${it.rot}deg)` }, { transform: `scale(1.08) rotate(${it.rot}deg)`, offset: .35 }, { transform: `scale(1) rotate(${it.rot}deg)` }],
+        { duration: 300, delay, easing: OUT, composite: "replace" });
+    });
     await sleep(980);
     swap();
     await sleep(80);
-    // 3) out: banner snaps away, numbers pop out center-first so the store opens from the middle
-    banner.animate([{ transform: "translate(-50%,-50%) scale(1)", opacity: 1 }, { transform: "translate(-50%,-50%) scale(1.3)", opacity: 0 }],
-      { duration: 300, easing: "ease-in", fill: "forwards" });
+    // 3) out: banner lifts off, crosses fall away center-first so the store opens from the middle
+    banner.animate([{ transform: "translate(-50%,-50%) scale(1)", opacity: 1 }, { transform: "translate(-50%,-50%) scale(1.15)", opacity: 0 }],
+      { duration: 240, easing: OUT, fill: "forwards" });
     const outs = items.map(it => it.im.animate([
       { transform: `scale(1) rotate(${it.rot}deg)`, opacity: 1 },
-      { transform: `scale(0) rotate(${it.rot + 50}deg)`, opacity: 0 }],
-      { duration: 380, delay: 100 + it.d * 42, easing: "cubic-bezier(.6,0,.4,1)", fill: "forwards" }));
-    back.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, delay: 150, fill: "forwards" });
+      { transform: `scale(.7) rotate(${it.rot + 24}deg)`, opacity: 0 }],
+      { duration: 360, delay: 90 + it.d * 40, easing: OUT, fill: "forwards" }));
+    back.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, delay: 150, easing: OUT, fill: "forwards" });
     await Promise.all(outs.map(done));
     root.remove();
   }
@@ -222,7 +230,7 @@
     drift.pause();
     scene.animate([{ transform: "translate3d(0,0,0) scale(1.04)" }, { transform: "translate3d(0,0,0) scale(1.5)" }],
       { duration: 620, easing: "cubic-bezier(.6,0,.9,.4)", fill: "both" });
-    box.firstChild.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, easing: "ease-in", fill: "both" });
+    box.firstChild.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "both" });
     await done(box.animate([{ transform: "translate(-50%,-50%) scale(1)" }, { transform: `translate(-50%,-50%) scale(${k})` }],
       { duration: 620, easing: "cubic-bezier(.65,0,.85,.35)", fill: "both" }));
     // screen is solid red: swap in the store underneath and drop everything but the red panel
@@ -321,7 +329,13 @@
     x.putImageData(img, 0, 0);
     return (grainURL = c.toDataURL());
   }
-  (window.requestIdleCallback || (f => setTimeout(f, 1600)))(() => { getBatSprites(); getGrain(); });
+  (window.requestIdleCallback || (f => setTimeout(f, 1600)))(() => {
+    const s = getBatSprites(); getGrain();
+    // draw every frame once into a throwaway canvas so the first bats run doesn't pay the upload cost mid-flight
+    const c = document.createElement("canvas"); c.width = c.height = 8;
+    const x = c.getContext("2d");
+    [s.near, s.nearSm, s.far, s.farSm].forEach(set => set.forEach(f => x.drawImage(f, 0, 0, 8, 8)));
+  });
 
   async function bats(swap) {
     const sprites = getBatSprites();
@@ -373,25 +387,28 @@
         const set = far ? (small ? sprites.farSm : sprites.far) : (small ? sprites.nearSm : sprites.near);
         const spr = set[Math.round((Math.sin(b.ph) + 1) / 2 * (BAT_FRAMES - 1))];
         const k = b.s / BAT_BASE, w = sprites.w * k, h = sprites.h * k;
-        ctx.save();
-        ctx.translate(b.x, b.y); ctx.rotate(Math.atan2(b.vy, b.vx) * .22);
+        if (b.x < -w || b.x > W + w || b.y < -h || b.y > H + h) continue;   // off screen: skip the draw
+        // one setTransform per bat instead of save/translate/rotate/restore (cheaper per frame)
+        const a = Math.atan2(b.vy, b.vx) * .22, cs = Math.cos(a) * dpr, sn = Math.sin(a) * dpr;
+        ctx.setTransform(cs, sn, -sn, cs, b.x * dpr, b.y * dpr);
         ctx.drawImage(spr, -w / 2, -h / 2, w, h);
-        ctx.restore();
       }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
 
     // 1) swarm pours in; the screen sinks into red-black haze behind it
-    bg.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 650, delay: 260, easing: "ease-in", fill: "both" });
+    bg.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 650, delay: 200, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "both" });
     grain.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 500, delay: 500, fill: "both" });
     await sleep(900);
     // 2) glow swells, wordmark strobes on, swoosh ring draws around it
     glow.animate([{ opacity: 0, transform: "translate(-50%,-50%) scale(.7)" }, { opacity: 1, transform: "translate(-50%,-50%) scale(1)" }],
       { duration: 1400, easing: "cubic-bezier(.2,.7,.3,1)", fill: "both" });
     // smooth reveal: fades up out of a soft blur and settles into focus (no flicker)
-    mark.animate([{ opacity: 0, filter: "blur(14px)", transform: "translate(-50%,-50%) scale(1.08)" },
-                  { opacity: 1, filter: "blur(0px)", transform: "translate(-50%,-50%) scale(1)" }],
+    // opacity + scale only: an animated blur repaints the glowing text every frame and drops frames
+    mark.animate([{ opacity: 0, transform: "translate(-50%,-50%) scale(1.06)" },
+                  { opacity: 1, transform: "translate(-50%,-50%) scale(1)" }],
       { duration: 850, easing: "cubic-bezier(.22,.8,.3,1)", fill: "both" });
     ring.animate([{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: 800, delay: 180, easing: "cubic-bezier(.5,0,.2,1)", fill: "both" });
     await sleep(1150);
@@ -399,9 +416,9 @@
     await sleep(60);
     // 3) out: wordmark cuts, bats burst toward the viewer, the haze lifts
     mark.animate([{ opacity: 1, transform: "translate(-50%,-50%) scale(1)" }, { opacity: 0, transform: "translate(-50%,-50%) scale(1.04)" }],
-      { duration: 260, easing: "ease-in", fill: "forwards" });
-    glow.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 350, fill: "forwards" });
-    grain.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 450, delay: 120, fill: "forwards" });
+      { duration: 240, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "forwards" });
+    glow.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 350, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "forwards" });
+    grain.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 450, delay: 120, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "forwards" });
     phase = "out";
     await done(bg.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 520, delay: 160, easing: "ease-out", fill: "forwards" }));
     await sleep(380);
@@ -596,7 +613,8 @@
     swap();
     await sleep(80);
     // 2) the pile gives way: top rows tumble first, everything drops off the bottom
-    tag.animate([{ opacity: 1 }, { opacity: 0, transform: "translate(-50%,60%) rotate(8deg)" }], { duration: 300, fill: "forwards" });
+    tag.animate([{ opacity: 1, transform: "translate(-50%,-50%) rotate(-6deg) scale(1)" }, { opacity: 0, transform: "translate(-50%,60%) rotate(8deg) scale(.96)" }],
+      { duration: 320, easing: "cubic-bezier(.55,0,.85,.4)", fill: "forwards" });   // falls with the pile
     const outs = pieces.map(p => p.el.animate([
       { transform: `translateY(0) rotate(${p.rot}deg)` },
       { transform: `translateY(${p.drop + rnd(0, 200)}px) rotate(${p.rot + rnd(-120, 120)}deg)` }],
@@ -619,18 +637,17 @@
     root.remove();
   }
 
-  // each big transition plays once per visit; after that, switching is a quick dip so browsing stays fast
-  const SEEN_KEY = "dc_fx_seen_v1";
-  const seen = (() => { try { return new Set(JSON.parse(sessionStorage.getItem(SEEN_KEY) || "[]")); } catch (e) { return new Set(); } })();
-  const markSeen = k => { seen.add(k); try { sessionStorage.setItem(SEEN_KEY, JSON.stringify([...seen])); } catch (e) {} };
-  async function quick(swap) {
-    const root = layer("fx-quick");
-    const ease = "cubic-bezier(0.23, 1, 0.32, 1)";
-    await done(root.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 130, easing: ease, fill: "both" }));
-    swap();
-    await done(root.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: ease, fill: "both" }));
-    root.remove();
+  // Hand-off: while a transition covers the screen, the page underneath holds its entrance (body.fx-hold),
+  // and it starts the moment the cover begins to lift, so the store comes alive as it's revealed
+  // instead of having finished its entrance unseen.
+  let waiters = [];
+  const holding = () => document.body.classList.contains("fx-hold");
+  function release() {
+    if (!holding()) return;
+    document.body.classList.remove("fx-hold");
+    const w = waiters; waiters = []; w.forEach(f => f());
   }
+  const whenRevealed = () => holding() ? new Promise(r => waiters.push(r)) : Promise.resolve();
 
   let running = false;
   async function run(kind, swap, label) {
@@ -640,13 +657,13 @@
     // 732 picks one of its transitions at random each time
     const pool = [cluster, nightcity, bats, tour];
     const fx732 = pool[(Math.random() * pool.length) | 0];
-    const key = kind === "732" || kind === "508" ? kind : "wipe";
-    const full = !seen.has(key);
-    if (full) markSeen(key);
-    try { await (!full ? quick : kind === "732" ? fx732 : kind === "508" ? pile : wipe)(swap, label); }
+    document.body.classList.add("fx-hold");
+    // every transition starts its reveal right after swap() (+60-90ms), so release with it
+    const swapAndRelease = () => { swap(); setTimeout(release, 70); };
+    try { await (kind === "732" ? fx732 : kind === "508" ? pile : wipe)(swapAndRelease, label); }
     catch (e) { console.error(e); swap(); document.querySelectorAll(".fx").forEach(n => n.remove()); }
-    finally { running = false; }
+    finally { running = false; release(); }
   }
 
-  window.DCFX = { run, _nightcity: nightcity, _bats: bats, _tour: tour, cemURI: n => CEM_URI[n] || CEM_URI.white, CEM, CEM_NAMES, CROSS_RATIO };
+  window.DCFX = { run, whenRevealed, _nightcity: nightcity, _bats: bats, _tour: tour, cemURI: n => CEM_URI[n] || CEM_URI.white, CEM, CEM_NAMES, CROSS_RATIO };
 })();

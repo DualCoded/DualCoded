@@ -404,7 +404,7 @@
       const d = n++ * 70;
       en.target.style.transitionDelay = d + "ms";
       en.target.classList.add("seen"); io.unobserve(en.target);
-      if (en.target.querySelector(".card-tag")) playDrop(en.target, d);
+      if (en.target.querySelector(".card-tag")) DCFX.whenRevealed().then(() => playDrop(en.target, d));   // flip plays where it can be seen
     });
   }, { rootMargin: "0px 0px -30px 0px" });
 
